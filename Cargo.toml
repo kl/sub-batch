@@ -1,0 +1,15 @@
+[package]
+edition = "2018"
+name = "sub-batch"
+version = "0.1.0"
+authors = ["Kalle Lindström <kalind@posteo.se>"]
+
+[dependencies]
+reqwest = "0.9.9"
+regex = "1.1.0"
+rayon = "1.0.3"
+subparse = "0.4.0"
+clap = "2.32.0"
+derive_builder = "0.7.1"
+lazy_static = "1.2.0"
+encoding_rs = "0.8.16"
