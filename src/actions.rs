@@ -20,11 +20,6 @@ impl Action for Renamer {
             return Ok(());
         }
 
-        if matches.is_empty() {
-            println!("found no match for any sub file");
-            return Ok(());
-        }
-
         for rename in matches.iter() {
             println!("{} -> {}", rename.file_path, rename.sub_path);
         }

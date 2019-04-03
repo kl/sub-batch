@@ -18,8 +18,8 @@ OPTIONS:
     -p, --path <path>              The path to download to and look for subs in. [default: .]
     -s, --subarea <subarea>        Specifies a regular expression that defines the part of the subtitle filename where
                                    episode number should be extracted from.
-    -t, --timing <timing>          Adjusts the timing of all subs. The value is specified in seconds, and can be
-                                   negative and fractional.
+    -t, --timing <timing>          Adjusts the timing of all subs. The value is specified in milliseconds, and can be
+                                   negative.
     -v, --videoarea <videoarea>    Specifies a regular expression that defines the part of the video filename where
                                    episode number should be extracted from.
 
@@ -67,10 +67,10 @@ The regular expression given to --subarea (and --videoarea) limits the number ex
 
 sub-batch can also batch adjust the timings for all subtitle files. To do this you use the --timing option, for example:
 ```
-sub-batch --timing 0.1
+sub-batch --timing 100
 ```
-which moves all subtitles forward by 100ms, or:
+which moves all subtitles forward by 100 ms, or:
 ```
-sub-batch --timing -0.05
+sub-batch --timing -50
 ```
 which moves all subtitles back by 50 ms.

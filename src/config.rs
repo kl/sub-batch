@@ -5,7 +5,7 @@ use clap::ArgMatches;
 use encoding_rs::Encoding;
 use regex::Regex;
 use std::env;
-use std::num::ParseFloatError;
+use std::num::{ParseFloatError, ParseIntError};
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -51,7 +51,6 @@ impl Config {
                     .short("va")
                     .takes_value(true)
                     .allow_hyphen_values(true)
-                    .requires("rename")
                     .help(
                         "Specifies a regular expression that defines the part of the video \
                          filename where episode number should be extracted from.",
@@ -63,7 +62,6 @@ impl Config {
                     .short("sa")
                     .takes_value(true)
                     .allow_hyphen_values(true)
-                    .requires("rename")
                     .help(
                         "Specifies a regular expression that defines the part of the subtitle \
                          filename where episode number should be extracted from.",
@@ -76,8 +74,8 @@ impl Config {
                     .takes_value(true)
                     .allow_hyphen_values(true)
                     .help(
-                        "Adjusts the timing of all subs. The value is specified in seconds, \
-                         and can be negative and fractional.",
+                        "Adjusts the timing of all subs. The value is specified in milliseconds, \
+                         and can be negative.",
                     ),
             )
             .arg(
@@ -134,10 +132,9 @@ fn area(matches: &ArgMatches, key: &str) -> Result<Option<Regex>, AnyError> {
     })
 }
 
-fn timing(matches: &ArgMatches) -> Result<Option<i64>, ParseFloatError> {
+fn timing(matches: &ArgMatches) -> Result<Option<i64>, ParseIntError> {
     Ok(if let Some(v) = matches.value_of("timing") {
-        let secs = f64::from_str(v)?;
-        let ms = (secs * 1000.0).round() as i64;
+        let ms = i64::from_str(v)?;
         Some(ms)
     } else {
         None

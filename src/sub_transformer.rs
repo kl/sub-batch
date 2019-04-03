@@ -26,6 +26,7 @@ pub struct SubTransformer {
     pub actions: Vec<Box<Action>>,
 }
 
+#[derive(Debug)]
 pub struct SubAndFile<'a> {
     pub sub_path: &'a str,
     pub file_path: &'a str,
@@ -46,8 +47,12 @@ impl SubTransformer {
         let files_with_numbers = self.scan_number_files()?;
         let matched = self.match_files(&files_with_numbers)?;
 
-        for action in &self.actions {
-            action.apply(&matched, config)?;
+        if matched.is_empty() {
+            println!("found no match for any sub file");
+        } else {
+            for action in &self.actions {
+                action.apply(&matched, config)?;
+            }
         }
 
         Ok(())
@@ -128,6 +133,7 @@ fn try_extract_area<'a>(text: &'a str, regex: &Option<Regex>) -> Result<&'a str,
     }
 }
 
+#[derive(Debug)]
 pub struct TextAndArea<'a> {
     text: &'a str,
     area: &'a str,
