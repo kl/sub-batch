@@ -50,6 +50,7 @@ impl Config {
                     .long("videoarea")
                     .short("va")
                     .takes_value(true)
+                    .allow_hyphen_values(true)
                     .requires("rename")
                     .help(
                         "Specifies a regular expression that defines the part of the video \
@@ -61,6 +62,7 @@ impl Config {
                     .long("subarea")
                     .short("sa")
                     .takes_value(true)
+                    .allow_hyphen_values(true)
                     .requires("rename")
                     .help(
                         "Specifies a regular expression that defines the part of the subtitle \

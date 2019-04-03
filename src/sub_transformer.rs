@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::util::AnyError;
+use crate::util::*;
 use regex::Regex;
 use std::fmt::Debug;
 use std::path::PathBuf;
@@ -44,7 +44,7 @@ impl SubAndFile<'_> {
 impl SubTransformer {
     pub fn execute(&self, config: &Config) -> Result<(), AnyError> {
         let files_with_numbers = self.scan_number_files()?;
-        let matched = self.match_files(&files_with_numbers);
+        let matched = self.match_files(&files_with_numbers)?;
 
         for action in &self.actions {
             action.apply(&matched, config)?;
@@ -64,43 +64,71 @@ impl SubTransformer {
         Ok(files)
     }
 
-    fn match_files<'a>(&self, files_with_numbers: &'a [String]) -> Vec<SubAndFile<'a>> {
+    fn match_files<'a>(
+        &self,
+        files_with_numbers: &'a [String],
+    ) -> Result<Vec<SubAndFile<'a>>, AnyError> {
+        // Separate subtitle files from non-subtitle files.
         let (subs, others): (Vec<&String>, Vec<&String>) = files_with_numbers
             .iter()
             .partition(|file| self.extensions.iter().any(|ext| file.ends_with(ext)));
 
-        subs.iter()
-            .filter_map(|sub| {
-                let area = try_extract_area(sub, &self.sub_area);
-                let num = NUMBER.find(area).map(|m| m.as_str())?;
+        // Find the areas inside the paths that match the area regular expressions.
+        let sub_areas = find_areas(subs, &self.sub_area)?;
+        let mut other_areas = find_areas(others, &self.video_area)?;
 
-                others
+        // Match the subtitle and other paths where they have the same number in their areas.
+        Ok(sub_areas
+            .iter()
+            .filter_map(|sub| {
+                let num = NUMBER.find(sub.area).map(|m| m.as_str())?;
+                // Parse the number to remove any leading zeroes.
+                let parsed = num.parse::<u32>().unwrap().to_string();
+
+                let (index, target) = other_areas
                     .iter()
-                    .find(|other| {
-                        let area = try_extract_area(other, &self.video_area);
-                        area.contains(num)
-                    })
-                    .map(|target| SubAndFile {
-                        sub_path: sub,
-                        file_path: target,
-                    })
+                    .enumerate()
+                    .find(|(_, other)| other.area.contains(&parsed))?;
+
+                let sub_and_file = Some(SubAndFile {
+                    sub_path: sub.text,
+                    file_path: target.text,
+                });
+
+                other_areas.remove(index);
+                sub_and_file
             })
-            .collect()
+            .collect())
     }
 }
 
-/// Returns the area matched by the regex, or the entire &str if regex is None or the regex
-/// did not match.
-fn try_extract_area<'a>(text: &'a str, regex: &Option<Regex>) -> &'a str {
+fn find_areas<'a>(
+    texts: Vec<&'a String>,
+    area_matcher: &Option<Regex>,
+) -> Result<Vec<TextAndArea<'a>>, AnyError> {
+    texts
+        .iter()
+        .map(|text| -> Result<TextAndArea, AnyError> {
+            let area = try_extract_area(text, area_matcher)?;
+            Ok(TextAndArea { text, area })
+        })
+        .fold_results_vec()
+}
+
+fn try_extract_area<'a>(text: &'a str, regex: &Option<Regex>) -> Result<&'a str, AnyError> {
     if let Some(r) = regex {
         if let Some(m) = r.find(text) {
-            return m.as_str();
+            Ok(m.as_str())
         } else {
-            eprintln!(
-                "warning: failed to match regex {} on text: {}, using whole text instead",
-                r, text
-            )
+            let message = format!("failed to match regex {} on text: {}", r, text);
+            Err(message.to_simple_error_boxed())
         }
+    } else {
+        Ok(text)
     }
-    text
+}
+
+pub struct TextAndArea<'a> {
+    text: &'a str,
+    area: &'a str,
 }
