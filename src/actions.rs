@@ -20,8 +20,17 @@ impl Action for Renamer {
             return Ok(());
         }
 
-        for rename in matches.iter() {
-            println!("{} -> {}", rename.file_path, rename.sub_path);
+        let renames: Vec<&SubAndFile> = matches
+            .iter()
+            .filter(|re| re.sub_file_part != re.file_file_part)
+            .collect();
+
+        if renames.is_empty() {
+            return Ok(());
+        }
+
+        for rename in renames.iter() {
+            println!("{} -> {}", rename.sub_path, rename.file_path);
         }
 
         println!("Ok? (y/n)");
@@ -30,10 +39,10 @@ impl Action for Renamer {
         std::io::stdin().read_line(&mut input)?;
 
         if input.to_lowercase().starts_with('y') {
-            for rename in matches.iter() {
-                let sub_ext = rename.sub_ext();
+            for rename in renames.iter() {
+                let sub_ext = rename.sub_ext_part;
 
-                let new_name = if let Some(file_ext) = rename.file_ext() {
+                let new_name = if let Some(file_ext) = rename.file_ext_part {
                     rename.file_path.replace(file_ext, sub_ext)
                 } else {
                     rename.file_path.to_string() + sub_ext
@@ -63,7 +72,7 @@ impl Action for TimingAdjuster {
                 .iter()
                 .map(|s| -> Result<Box<_>, AnyError> {
                     let content = fs::read(s.sub_path)?;
-                    let format = subparse::get_subtitle_format_err(s.sub_ext(), &content)?;
+                    let format = subparse::get_subtitle_format_err(s.sub_ext_part, &content)?;
                     let parsed =
                         subparse::parse_bytes(format, &content, config.encoding, config.fps)?;
                     Ok(parsed)

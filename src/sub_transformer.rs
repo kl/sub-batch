@@ -29,16 +29,30 @@ pub struct SubTransformer {
 #[derive(Debug)]
 pub struct SubAndFile<'a> {
     pub sub_path: &'a str,
+    pub sub_file_part: &'a str,
+    pub sub_ext_part: &'a str,
     pub file_path: &'a str,
+    pub file_file_part: &'a str,
+    pub file_ext_part: Option<&'a str>,
 }
 
-impl SubAndFile<'_> {
-    pub fn sub_ext(&self) -> &str {
-        EXTENSION.find(self.sub_path).map(|m| m.as_str()).unwrap()
-    }
+impl<'a> SubAndFile<'a> {
+    fn new(sub_path: &'a str, file_path: &'a str) -> SubAndFile<'a> {
+        let (sub_file_part, sub_ext_part) =
+            split_extension(sub_path).expect("sub file didn't have an extension");
 
-    pub fn file_ext(&self) -> Option<&str> {
-        EXTENSION.find(self.file_path).map(|m| m.as_str())
+        let (file_file_part, file_ext_part) = split_extension(file_path)
+            .map(|(f, e)| (f, Some(e)))
+            .unwrap_or((file_path, None));
+
+        SubAndFile {
+            sub_path,
+            sub_file_part,
+            sub_ext_part,
+            file_path,
+            file_file_part,
+            file_ext_part,
+        }
     }
 }
 
@@ -59,9 +73,12 @@ impl SubTransformer {
     }
 
     fn scan_number_files(&self) -> Result<Vec<String>, AnyError> {
-        let mut files: Vec<String> = std::fs::read_dir(&self.path)?
-            .map(|f| f.unwrap().path().to_str().unwrap().to_string())
-            .filter(|f| NUMBER.is_match(&f))
+        let entries = std::fs::read_dir(&self.path)?.fold_results_vec()?;
+
+        let mut files: Vec<String> = entries
+            .iter()
+            .map(|e| e.path().to_string_lossy().to_string())
+            .filter(|p| NUMBER.is_match(&p))
             .collect();
 
         files.sort();
@@ -74,37 +91,71 @@ impl SubTransformer {
         files_with_numbers: &'a [String],
     ) -> Result<Vec<SubAndFile<'a>>, AnyError> {
         // Separate subtitle files from non-subtitle files.
-        let (subs, others): (Vec<&String>, Vec<&String>) = files_with_numbers
+        let (mut subs, mut others): (Vec<&String>, Vec<&String>) = files_with_numbers
             .iter()
             .partition(|file| self.extensions.iter().any(|ext| file.ends_with(ext)));
+
+        // Find subs that already match their video files and return and remove them from subs
+        // and others.
+        let mut already_matched = extract_already_matched(&mut subs, &mut others);
 
         // Find the areas inside the paths that match the area regular expressions.
         let sub_areas = find_areas(subs, &self.sub_area)?;
         let mut other_areas = find_areas(others, &self.video_area)?;
 
         // Match the subtitle and other paths where they have the same number in their areas.
-        Ok(sub_areas
+        let mut sub_and_files: Vec<SubAndFile<'a>> = sub_areas
             .iter()
             .filter_map(|sub| {
                 let num = NUMBER.find(sub.area).map(|m| m.as_str())?;
-                // Parse the number to remove any leading zeroes.
-                let parsed = num.parse::<u32>().unwrap().to_string();
+                let num = num.parse::<u32>().unwrap().to_string();  // remove leading zeroes
 
                 let (index, target) = other_areas
                     .iter()
                     .enumerate()
-                    .find(|(_, other)| other.area.contains(&parsed))?;
+                    .find(|(_, other)| other.area.contains(&num))?;
 
-                let sub_and_file = Some(SubAndFile {
-                    sub_path: sub.text,
-                    file_path: target.text,
-                });
+                let sub_and_file = Some(SubAndFile::new(sub.text, target.text));
 
                 other_areas.remove(index);
                 sub_and_file
             })
-            .collect())
+            .collect();
+
+        sub_and_files.append(&mut already_matched);
+        Ok(sub_and_files)
     }
+}
+
+fn extract_already_matched<'a>(
+    subs: &mut Vec<&'a String>,
+    others: &mut Vec<&'a String>,
+) -> Vec<SubAndFile<'a>> {
+    let mut already_matched: Vec<SubAndFile<'a>> = vec![];
+
+    subs.retain(|sub| {
+        let (sub_file_part, _) = split_extension(sub).expect("sub file didn't have an extension");
+
+        if let Some((index, _)) = others.iter().enumerate().find(|(_, other)| {
+            // We may not have an extension, if not compare entire file path.
+            split_extension(other)
+                .map(|(other_file_part, _)| sub_file_part == other_file_part)
+                .unwrap_or_else(|| sub_file_part == **other)
+        }) {
+            already_matched.push(SubAndFile::new(sub, others.remove(index)));
+            false
+        } else {
+            true
+        }
+    });
+
+    already_matched
+}
+
+fn split_extension<'a>(path: &'a str) -> Option<(&'a str, &'a str)> {
+    let ext = EXTENSION.find(path)?.as_str();
+    let file = path.split(ext).next()?;
+    Some((file, ext))
 }
 
 fn find_areas<'a>(
