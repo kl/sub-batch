@@ -1,6 +1,9 @@
 # sub-batch
 Download and match subtitle files to video files
 
+### Install
+```cargo install sub-batch```
+
 ```
 USAGE:
     sub-batch [FLAGS] [OPTIONS] [url]
