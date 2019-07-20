@@ -1,16 +1,14 @@
-mod actions;
 mod config;
-mod net;
-mod sub_transformer;
-
-use crate::config::Config;
-use crate::sub_transformer::Action;
-use actions::*;
+mod scanner;
+mod commands {
+    pub mod download;
+    pub mod rename;
+    pub mod time;
+}
+use crate::config::{CommandConfig, GlobalConfig};
 use anyhow::Result as AnyResult;
-use sub_transformer::SubTransformerBuilder;
-
-#[macro_use]
-extern crate derive_builder;
+use commands::*;
+use CommandConfig::*;
 
 #[macro_use]
 extern crate lazy_static;
@@ -26,28 +24,14 @@ fn main() {
 }
 
 fn run() -> AnyResult<()> {
-    let mut config = Config::parse()?;
+    let (global_config, cmd_config) = GlobalConfig::parse()?;
 
-    if let Some(ref url) = config.url {
-        net::download_subs(url, &config.path)?;
-    }
-
-    let transformer = SubTransformerBuilder::default()
-        .path(config.path.clone())
-        .extensions(vec!["ssa", "ass", "sub", "srt", "idx"]) // same as subparse supports
-        .video_area(config.video_area.take())
-        .sub_area(config.sub_area.take())
-        .actions(actions())
-        .build()
-        .map_err(|e| anyhow!("failed to create SubTransformer: {:?}", e))?;
-
-    transformer.execute(&config)?;
+    // Delegate to the right command.
+    match cmd_config {
+        Download(c) => download::run(global_config, c),
+        Rename(c) => rename::run(global_config, c),
+        Time(c) => time::run(global_config, c),
+    }?;
 
     Ok(())
-}
-
-fn actions() -> Vec<Box<dyn Action>> {
-    // Order is important here. If Renamer were to run first it would break TimingAdjuster
-    // because they both operate on the same file paths.
-    vec![Box::new(TimingAdjuster::new()), Box::new(Renamer::new())]
 }

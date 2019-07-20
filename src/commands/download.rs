@@ -1,12 +1,12 @@
+use crate::config::{DownloadConfig, GlobalConfig};
 use anyhow::Result as AnyResult;
 use bytes::Bytes;
 use rayon::prelude::*;
 use regex::Regex;
-use std::path::Path;
 
-pub fn download_subs(url: &str, path: impl AsRef<Path>) -> AnyResult<()> {
-    let path = path.as_ref();
-    let text = download_string(url)?;
+pub fn run(global_conf: GlobalConfig, conf: DownloadConfig) -> AnyResult<()> {
+    let path = &global_conf.path;
+    let text = download_string(&conf.url)?;
 
     let links_start = text
         .split("flisttable")

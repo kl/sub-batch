@@ -12,8 +12,8 @@ fn can_rename_sub_file_that_contains_invalid_utf8() {
     Command::cargo_bin("sub-batch")
         .unwrap()
         .current_dir(&dir)
-        .arg("-r")
         .arg("-y")
+        .arg("rename")
         .assert()
         .success();
 
