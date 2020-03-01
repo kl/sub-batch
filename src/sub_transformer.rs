@@ -1,7 +1,9 @@
 use crate::config::Config;
-use crate::util::*;
+use anyhow::Result as AnyResult;
 use regex::Regex;
 use std::fmt::Debug;
+use std::fs::DirEntry;
+use std::io;
 use std::path::PathBuf;
 
 lazy_static! {
@@ -13,7 +15,7 @@ lazy_static! {
 }
 
 pub trait Action: Debug {
-    fn apply(&self, matches: &[SubAndFile], config: &Config) -> Result<(), AnyError>;
+    fn apply(&self, matches: &[SubAndFile], config: &Config) -> AnyResult<()>;
 }
 
 #[derive(Builder, Debug)]
@@ -23,7 +25,7 @@ pub struct SubTransformer {
     pub extensions: Vec<&'static str>,
     pub video_area: Option<Regex>,
     pub sub_area: Option<Regex>,
-    pub actions: Vec<Box<Action>>,
+    pub actions: Vec<Box<dyn Action>>,
 }
 
 #[derive(Debug)]
@@ -57,7 +59,7 @@ impl<'a> SubAndFile<'a> {
 }
 
 impl SubTransformer {
-    pub fn execute(&self, config: &Config) -> Result<(), AnyError> {
+    pub fn execute(&self, config: &Config) -> AnyResult<()> {
         let files_with_numbers = self.scan_number_files()?;
         let matched = self.match_files(&files_with_numbers)?;
 
@@ -72,8 +74,8 @@ impl SubTransformer {
         Ok(())
     }
 
-    fn scan_number_files(&self) -> Result<Vec<String>, AnyError> {
-        let entries = std::fs::read_dir(&self.path)?.fold_results_vec()?;
+    fn scan_number_files(&self) -> AnyResult<Vec<String>> {
+        let entries = std::fs::read_dir(&self.path)?.collect::<io::Result<Vec<DirEntry>>>()?;
 
         let mut files: Vec<String> = entries
             .iter()
@@ -86,10 +88,7 @@ impl SubTransformer {
         Ok(files)
     }
 
-    fn match_files<'a>(
-        &self,
-        files_with_numbers: &'a [String],
-    ) -> Result<Vec<SubAndFile<'a>>, AnyError> {
+    fn match_files<'a>(&self, files_with_numbers: &'a [String]) -> AnyResult<Vec<SubAndFile<'a>>> {
         // Separate subtitle files from non-subtitle files.
         let (mut subs, mut others): (Vec<&String>, Vec<&String>) = files_with_numbers
             .iter()
@@ -108,7 +107,7 @@ impl SubTransformer {
             .iter()
             .filter_map(|sub| {
                 let num = NUMBER.find(sub.area).map(|m| m.as_str())?;
-                let num = num.parse::<u32>().unwrap().to_string();  // remove leading zeroes
+                let num = num.parse::<u32>().unwrap().to_string(); // remove leading zeroes
 
                 let (index, target) = other_areas
                     .iter()
@@ -152,7 +151,7 @@ fn extract_already_matched<'a>(
     already_matched
 }
 
-fn split_extension<'a>(path: &'a str) -> Option<(&'a str, &'a str)> {
+fn split_extension(path: &str) -> Option<(&str, &str)> {
     let ext = EXTENSION.find(path)?.as_str();
     let file = path.split(ext).next()?;
     Some((file, ext))
@@ -161,23 +160,22 @@ fn split_extension<'a>(path: &'a str) -> Option<(&'a str, &'a str)> {
 fn find_areas<'a>(
     texts: Vec<&'a String>,
     area_matcher: &Option<Regex>,
-) -> Result<Vec<TextAndArea<'a>>, AnyError> {
+) -> AnyResult<Vec<TextAndArea<'a>>> {
     texts
         .iter()
-        .map(|text| -> Result<TextAndArea, AnyError> {
+        .map(|text| -> AnyResult<TextAndArea> {
             let area = try_extract_area(text, area_matcher)?;
             Ok(TextAndArea { text, area })
         })
-        .fold_results_vec()
+        .collect::<AnyResult<_>>()
 }
 
-fn try_extract_area<'a>(text: &'a str, regex: &Option<Regex>) -> Result<&'a str, AnyError> {
+fn try_extract_area<'a>(text: &'a str, regex: &Option<Regex>) -> AnyResult<&'a str> {
     if let Some(r) = regex {
         if let Some(m) = r.find(text) {
             Ok(m.as_str())
         } else {
-            let message = format!("failed to match regex {} on text: {}", r, text);
-            Err(message.to_simple_error_boxed())
+            bail!("failed to match regex {} on text: {}", r, text);
         }
     } else {
         Ok(text)

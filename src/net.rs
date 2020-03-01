@@ -1,19 +1,18 @@
-use crate::util::AnyError;
+use anyhow::Result as AnyResult;
 use rayon::prelude::*;
 use regex::Regex;
-use std::io::Error as IoError;
-use std::io::ErrorKind;
 use std::io::Read;
 use std::path::Path;
 
-pub fn download_subs(url: &str, path: impl AsRef<Path>) -> Result<(), AnyError> {
+pub fn download_subs(url: &str, path: impl AsRef<Path>) -> AnyResult<()> {
     let path = path.as_ref();
     let text = download_string(url)?;
 
     let links_start = text
         .split("flisttable")
         .last()
-        .ok_or("failed to find 'flisttable' in html")?;
+        .ok_or_else(|| anyhow!("failed to find 'flisttable' in html"))?;
+
     let links: &str = links_start.split("</table>").next().unwrap();
 
     let re = Regex::new("href=\"(.+?)\"").unwrap();
@@ -38,29 +37,23 @@ pub fn download_subs(url: &str, path: impl AsRef<Path>) -> Result<(), AnyError> 
     Ok(())
 }
 
-fn download_string(url: &str) -> Result<String, AnyError> {
+fn download_string(url: &str) -> AnyResult<String> {
     println!("downloading url: {}", url);
     let mut resp = reqwest::get(url)?;
 
     if !resp.status().is_success() {
-        return Err(Box::new(IoError::new(
-            ErrorKind::Other,
-            format!("expected 200 OK, got: {}", resp.status()),
-        )));
+        bail!("expected 200 OK, got: {}", resp.status());
     }
 
     Ok(resp.text()?)
 }
 
-fn download_bytes(url: &str) -> Result<Vec<u8>, AnyError> {
+fn download_bytes(url: &str) -> AnyResult<Vec<u8>> {
     println!("downloading url: {}", url);
     let mut resp = reqwest::get(url)?;
 
     if !resp.status().is_success() {
-        return Err(Box::new(IoError::new(
-            ErrorKind::Other,
-            format!("expected 200 OK, got: {}", resp.status()),
-        )));
+        bail!("expected 200 OK, got: {}", resp.status());
     }
 
     let mut r = Vec::new();

@@ -1,4 +1,4 @@
-use crate::util::AnyError;
+use anyhow::Result as AnyResult;
 use clap::App;
 use clap::Arg;
 use clap::ArgMatches;
@@ -22,7 +22,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn parse() -> Result<Self, AnyError> {
+    pub fn parse() -> AnyResult<Self> {
         let matches = App::new("subs")
             .version(env!("CARGO_PKG_VERSION"))
             .arg(
@@ -124,7 +124,7 @@ fn check_args(matches: &ArgMatches) {
     }
 }
 
-fn area(matches: &ArgMatches, key: &str) -> Result<Option<Regex>, AnyError> {
+fn area(matches: &ArgMatches, key: &str) -> AnyResult<Option<Regex>> {
     Ok(if let Some(v) = matches.value_of(key) {
         Some(Regex::new(v)?)
     } else {
@@ -141,9 +141,9 @@ fn timing(matches: &ArgMatches) -> Result<Option<i64>, ParseIntError> {
     })
 }
 
-fn encoding(matches: &ArgMatches) -> Result<&'static Encoding, String> {
+fn encoding(matches: &ArgMatches) -> AnyResult<&'static Encoding> {
     let v = matches.value_of("encoding").unwrap();
-    Encoding::for_label(v.as_bytes()).ok_or_else(|| "invalid encoding".to_string())
+    Encoding::for_label(v.as_bytes()).ok_or_else(|| anyhow!("invalid encoding"))
 }
 
 fn fps(matches: &ArgMatches) -> Result<f64, ParseFloatError> {

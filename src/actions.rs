@@ -1,9 +1,9 @@
 use crate::config::Config;
 use crate::sub_transformer::{Action, SubAndFile};
-use crate::util::AnyError;
-use crate::util::FoldResultsVecExt;
+use anyhow::Result as AnyResult;
 use std::fs;
 use subparse::timetypes::TimeDelta;
+use subparse::SubtitleFile;
 
 #[derive(Debug)]
 pub struct Renamer {}
@@ -15,7 +15,7 @@ impl Renamer {
 }
 
 impl Action for Renamer {
-    fn apply(&self, matches: &[SubAndFile], config: &Config) -> Result<(), AnyError> {
+    fn apply(&self, matches: &[SubAndFile], config: &Config) -> AnyResult<()> {
         if !config.rename {
             return Ok(());
         }
@@ -66,27 +66,39 @@ impl TimingAdjuster {
 }
 
 impl Action for TimingAdjuster {
-    fn apply(&self, matches: &[SubAndFile], config: &Config) -> Result<(), AnyError> {
+    fn apply(&self, matches: &[SubAndFile], config: &Config) -> AnyResult<()> {
         if let Some(timing) = config.timing {
-            let mut parsed_subs = matches
+            let mut parsed_subs: Vec<SubtitleFile> = matches
                 .iter()
-                .map(|s| -> Result<Box<_>, AnyError> {
+                .map(|s| -> AnyResult<SubtitleFile> {
                     let content = fs::read(s.sub_path)?;
-                    let format = subparse::get_subtitle_format_err(s.sub_ext_part, &content)?;
-                    let parsed =
-                        subparse::parse_bytes(format, &content, config.encoding, config.fps)?;
-                    Ok(parsed)
+                    let format =
+                        subparse::get_subtitle_format(Some(s.sub_ext_part.as_ref()), &content)
+                            .ok_or_else(|| {
+                                anyhow!("invalid subtitle format: {:?}", s.sub_ext_part)
+                            })?;
+
+                    subparse::parse_bytes(format, &content, config.encoding, config.fps)
+                        .map_err(|e| anyhow!("failed to parse subtitle file: {:?}", e))
                 })
-                .fold_results_vec()?;
+                .collect::<AnyResult<_>>()?;
 
             for (i, sub) in parsed_subs.iter_mut().enumerate() {
-                let mut entries = sub.get_subtitle_entries()?;
+                let mut entries = sub
+                    .get_subtitle_entries()
+                    .map_err(|e| anyhow!("failed to get subtitle entries: {:?}", e))?;
+
                 for entry in &mut entries {
                     entry.timespan += TimeDelta::from_msecs(timing);
                 }
-                sub.update_subtitle_entries(&entries)?;
+                sub.update_subtitle_entries(&entries)
+                    .map_err(|e| anyhow!("failed to update subtitle entries: {:?}", e))?;
 
-                fs::write(matches[i].sub_path, sub.to_data()?)?;
+                let data = sub
+                    .to_data()
+                    .map_err(|e| anyhow!("failed to get subtitle data: {:?}", e))?;
+
+                fs::write(matches[i].sub_path, data)?;
             }
         }
 

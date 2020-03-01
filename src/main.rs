@@ -2,13 +2,12 @@ mod actions;
 mod config;
 mod net;
 mod sub_transformer;
-mod util;
 
 use crate::config::Config;
 use crate::sub_transformer::Action;
 use actions::*;
+use anyhow::Result as AnyResult;
 use sub_transformer::SubTransformerBuilder;
-use util::AnyError;
 
 #[macro_use]
 extern crate derive_builder;
@@ -16,7 +15,17 @@ extern crate derive_builder;
 #[macro_use]
 extern crate lazy_static;
 
-fn run() -> Result<(), AnyError> {
+#[macro_use]
+extern crate anyhow;
+
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("error: {}", e);
+        std::process::exit(1);
+    }
+}
+
+fn run() -> AnyResult<()> {
     let mut config = Config::parse()?;
 
     if let Some(ref url) = config.url {
@@ -29,22 +38,16 @@ fn run() -> Result<(), AnyError> {
         .video_area(config.video_area.take())
         .sub_area(config.sub_area.take())
         .actions(actions())
-        .build()?;
+        .build()
+        .map_err(|e| anyhow!("failed to create SubTransformer: {:?}", e))?;
 
     transformer.execute(&config)?;
 
     Ok(())
 }
 
-fn actions() -> Vec<Box<Action>> {
+fn actions() -> Vec<Box<dyn Action>> {
     // Order is important here. If Renamer were to run first it would break TimingAdjuster
     // because they both operate on the same file paths.
     vec![Box::new(TimingAdjuster::new()), Box::new(Renamer::new())]
-}
-
-fn main() {
-    if let Err(e) = run() {
-        eprintln!("error: {}", e);
-        std::process::exit(1);
-    }
 }
