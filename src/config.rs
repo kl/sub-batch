@@ -19,6 +19,7 @@ pub struct Config {
     pub timing: Option<i64>,
     pub encoding: &'static Encoding,
     pub fps: f64,
+    pub no_confirm: bool,
 }
 
 impl Config {
@@ -99,6 +100,16 @@ impl Config {
                          is encoded in (only needed when adjusting timing).",
                     ),
             )
+            .arg(
+                Arg::with_name("no_confirm")
+                    .long("no-confirm")
+                    .short("y")
+                    .takes_value(false)
+                    .help(
+                        "If this flag is set sub-batch will not ask for any confirmation before \
+                        applying operations.",
+                    ),
+            )
             .get_matches();
 
         check_args(&matches);
@@ -112,6 +123,7 @@ impl Config {
             timing: timing(&matches)?,
             encoding: encoding(&matches)?,
             fps: fps(&matches)?,
+            no_confirm: matches.is_present("no_confirm"),
         })
     }
 }

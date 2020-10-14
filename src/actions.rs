@@ -29,31 +29,31 @@ impl Action for Renamer {
             return Ok(());
         }
 
-        for rename in renames.iter() {
-            println!("{} -> {}", rename.sub_path, rename.file_path);
-        }
-
-        println!("Ok? (y/n)");
-
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input)?;
-
-        if input.to_lowercase().starts_with('y') {
+        if config.no_confirm || ask_user_ok(&renames)? {
             for rename in renames.iter() {
-                let sub_ext = rename.sub_ext_part;
-
-                let new_name = if let Some(file_ext) = rename.file_ext_part {
-                    rename.file_path.replace(file_ext, sub_ext)
-                } else {
-                    rename.file_path.to_string() + sub_ext
-                };
-
+                let new_name = rename.file_path.with_extension(rename.sub_ext_part);
                 fs::rename(rename.sub_path, new_name)?;
             }
         }
 
         Ok(())
     }
+}
+
+fn ask_user_ok(renames: &[&SubAndFile]) -> AnyResult<bool> {
+    for rename in renames.iter() {
+        println!(
+            "{} -> {}",
+            rename.sub_path.to_string_lossy(),
+            rename.file_path.to_string_lossy()
+        );
+    }
+    println!("Ok? (y/n)");
+
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input)?;
+
+    Ok(input.to_lowercase().starts_with('y'))
 }
 
 #[derive(Debug)]
@@ -72,11 +72,8 @@ impl Action for TimingAdjuster {
                 .iter()
                 .map(|s| -> AnyResult<SubtitleFile> {
                     let content = fs::read(s.sub_path)?;
-                    let format =
-                        subparse::get_subtitle_format(Some(s.sub_ext_part.as_ref()), &content)
-                            .ok_or_else(|| {
-                                anyhow!("invalid subtitle format: {:?}", s.sub_ext_part)
-                            })?;
+                    let format = subparse::get_subtitle_format(Some(s.sub_ext_part), &content)
+                        .ok_or_else(|| anyhow!("invalid subtitle format: {:?}", s.sub_ext_part))?;
 
                     subparse::parse_bytes(format, &content, config.encoding, config.fps)
                         .map_err(|e| anyhow!("failed to parse subtitle file: {:?}", e))

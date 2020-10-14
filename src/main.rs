@@ -34,7 +34,7 @@ fn run() -> AnyResult<()> {
 
     let transformer = SubTransformerBuilder::default()
         .path(config.path.clone())
-        .extensions(vec![".ssa", ".ass", ".sub", ".srt", ".idx"]) // same as subparse supports
+        .extensions(vec!["ssa", "ass", "sub", "srt", "idx"]) // same as subparse supports
         .video_area(config.video_area.take())
         .sub_area(config.sub_area.take())
         .actions(actions())

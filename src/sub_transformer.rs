@@ -1,10 +1,11 @@
 use crate::config::Config;
 use anyhow::Result as AnyResult;
 use regex::Regex;
+use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fs::DirEntry;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 lazy_static! {
     static ref NUMBER: Regex = Regex::new(r"\d+").unwrap();
@@ -30,22 +31,22 @@ pub struct SubTransformer {
 
 #[derive(Debug)]
 pub struct SubAndFile<'a> {
-    pub sub_path: &'a str,
-    pub sub_file_part: &'a str,
-    pub sub_ext_part: &'a str,
-    pub file_path: &'a str,
-    pub file_file_part: &'a str,
-    pub file_ext_part: Option<&'a str>,
+    pub sub_path: &'a Path,
+    pub sub_file_part: &'a OsStr,
+    pub sub_ext_part: &'a OsStr,
+    pub file_path: &'a Path,
+    pub file_file_part: &'a OsStr,
+    pub file_ext_part: Option<&'a OsStr>,
 }
 
 impl<'a> SubAndFile<'a> {
-    fn new(sub_path: &'a str, file_path: &'a str) -> SubAndFile<'a> {
+    fn new(sub_path: &'a Path, file_path: &'a Path) -> SubAndFile<'a> {
         let (sub_file_part, sub_ext_part) =
             split_extension(sub_path).expect("sub file didn't have an extension");
 
         let (file_file_part, file_ext_part) = split_extension(file_path)
             .map(|(f, e)| (f, Some(e)))
-            .unwrap_or((file_path, None));
+            .unwrap_or((file_path.file_stem().expect("invalid file name"), None));
 
         SubAndFile {
             sub_path,
@@ -74,13 +75,13 @@ impl SubTransformer {
         Ok(())
     }
 
-    fn scan_number_files(&self) -> AnyResult<Vec<String>> {
+    fn scan_number_files(&self) -> AnyResult<Vec<PathBuf>> {
         let entries = std::fs::read_dir(&self.path)?.collect::<io::Result<Vec<DirEntry>>>()?;
 
-        let mut files: Vec<String> = entries
+        let mut files: Vec<PathBuf> = entries
             .iter()
-            .map(|e| e.path().to_string_lossy().to_string())
-            .filter(|p| NUMBER.is_match(&p))
+            .map(|e| e.path())
+            .filter(|p| p.is_file() && NUMBER.is_match(&p.to_string_lossy()))
             .collect();
 
         files.sort();
@@ -88,11 +89,18 @@ impl SubTransformer {
         Ok(files)
     }
 
-    fn match_files<'a>(&self, files_with_numbers: &'a [String]) -> AnyResult<Vec<SubAndFile<'a>>> {
+    fn match_files<'a>(&self, files_with_numbers: &'a [PathBuf]) -> AnyResult<Vec<SubAndFile<'a>>> {
         // Separate subtitle files from non-subtitle files.
-        let (mut subs, mut others): (Vec<&String>, Vec<&String>) = files_with_numbers
-            .iter()
-            .partition(|file| self.extensions.iter().any(|ext| file.ends_with(ext)));
+        let (mut subs, mut others): (Vec<&PathBuf>, Vec<&PathBuf>) =
+            files_with_numbers.iter().partition(|file| {
+                self.extensions.iter().any(|ext| {
+                    if let Some(file_ext) = file.extension().and_then(OsStr::to_str) {
+                        &file_ext == ext
+                    } else {
+                        false
+                    }
+                })
+            });
 
         // Find subs that already match their video files and return and remove them from subs
         // and others.
@@ -106,7 +114,7 @@ impl SubTransformer {
         let mut sub_and_files: Vec<SubAndFile<'a>> = sub_areas
             .iter()
             .filter_map(|sub| {
-                let num = NUMBER.find(sub.area).map(|m| m.as_str())?;
+                let num = NUMBER.find(&sub.area).map(|m| m.as_str())?;
                 let num = num.parse::<u32>().unwrap().to_string(); // remove leading zeroes
 
                 let (index, target) = other_areas
@@ -114,7 +122,7 @@ impl SubTransformer {
                     .enumerate()
                     .find(|(_, other)| other.area.contains(&num))?;
 
-                let sub_and_file = Some(SubAndFile::new(sub.text, target.text));
+                let sub_and_file = Some(SubAndFile::new(sub.path, target.path));
 
                 other_areas.remove(index);
                 sub_and_file
@@ -127,8 +135,8 @@ impl SubTransformer {
 }
 
 fn extract_already_matched<'a>(
-    subs: &mut Vec<&'a String>,
-    others: &mut Vec<&'a String>,
+    subs: &mut Vec<&'a PathBuf>,
+    others: &mut Vec<&'a PathBuf>,
 ) -> Vec<SubAndFile<'a>> {
     let mut already_matched: Vec<SubAndFile<'a>> = vec![];
 
@@ -151,39 +159,43 @@ fn extract_already_matched<'a>(
     already_matched
 }
 
-fn split_extension(path: &str) -> Option<(&str, &str)> {
-    let ext = EXTENSION.find(path)?.as_str();
-    let file = path.split(ext).next()?;
-    Some((file, ext))
+fn split_extension(path: &Path) -> Option<(&OsStr, &OsStr)> {
+    Some((path.file_stem()?, path.extension()?))
 }
 
 fn find_areas<'a>(
-    texts: Vec<&'a String>,
+    paths: Vec<&'a PathBuf>,
     area_matcher: &Option<Regex>,
-) -> AnyResult<Vec<TextAndArea<'a>>> {
-    texts
+) -> AnyResult<Vec<PathAndArea<'a>>> {
+    paths
         .iter()
-        .map(|text| -> AnyResult<TextAndArea> {
-            let area = try_extract_area(text, area_matcher)?;
-            Ok(TextAndArea { text, area })
+        .map(|path| -> AnyResult<PathAndArea> {
+            let area = try_extract_area(path, area_matcher)?;
+            Ok(PathAndArea { path, area })
         })
         .collect::<AnyResult<_>>()
 }
 
-fn try_extract_area<'a>(text: &'a str, regex: &Option<Regex>) -> AnyResult<&'a str> {
+fn try_extract_area(path: &Path, regex: &Option<Regex>) -> AnyResult<String> {
+    let stem: String = path
+        .file_stem()
+        .ok_or_else(|| anyhow!("file {} has an invalid file name", path.to_string_lossy()))?
+        .to_string_lossy()
+        .to_string();
+
     if let Some(r) = regex {
-        if let Some(m) = r.find(text) {
-            Ok(m.as_str())
+        if let Some(m) = r.find(&stem) {
+            Ok(m.as_str().into())
         } else {
-            bail!("failed to match regex {} on text: {}", r, text);
+            bail!("failed to match regex {} on text: {}", r, stem);
         }
     } else {
-        Ok(text)
+        Ok(stem)
     }
 }
 
 #[derive(Debug)]
-pub struct TextAndArea<'a> {
-    text: &'a str,
-    area: &'a str,
+pub struct PathAndArea<'a> {
+    path: &'a Path,
+    area: String,
 }
