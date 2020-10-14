@@ -1,7 +1,7 @@
 use anyhow::Result as AnyResult;
+use bytes::Bytes;
 use rayon::prelude::*;
 use regex::Regex;
-use std::io::Read;
 use std::path::Path;
 
 pub fn download_subs(url: &str, path: impl AsRef<Path>) -> AnyResult<()> {
@@ -26,11 +26,11 @@ pub fn download_subs(url: &str, path: impl AsRef<Path>) -> AnyResult<()> {
         .par_iter()
         .map(|sub| {
             let url = format!("https://kitsunekko.net/{}", sub);
-            let text = download_bytes(&url).unwrap();
+            let bytes = download_bytes(&url).unwrap();
             let filename = sub.split('/').last().unwrap();
             let file_path = path.join(filename);
             println!("{:?}", file_path);
-            std::fs::write(file_path, text).unwrap();
+            std::fs::write(file_path, bytes).unwrap();
         })
         .collect();
 
@@ -39,7 +39,7 @@ pub fn download_subs(url: &str, path: impl AsRef<Path>) -> AnyResult<()> {
 
 fn download_string(url: &str) -> AnyResult<String> {
     println!("downloading url: {}", url);
-    let mut resp = reqwest::get(url)?;
+    let resp = reqwest::blocking::get(url)?;
 
     if !resp.status().is_success() {
         bail!("expected 200 OK, got: {}", resp.status());
@@ -48,15 +48,13 @@ fn download_string(url: &str) -> AnyResult<String> {
     Ok(resp.text()?)
 }
 
-fn download_bytes(url: &str) -> AnyResult<Vec<u8>> {
+fn download_bytes(url: &str) -> AnyResult<Bytes> {
     println!("downloading url: {}", url);
-    let mut resp = reqwest::get(url)?;
+    let resp = reqwest::blocking::get(url)?;
 
     if !resp.status().is_success() {
         bail!("expected 200 OK, got: {}", resp.status());
     }
 
-    let mut r = Vec::new();
-    resp.read_to_end(&mut r)?;
-    Ok(r)
+    Ok(resp.bytes()?)
 }
