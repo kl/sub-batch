@@ -9,6 +9,7 @@ repository = "https://github.com/kl/sub-batch"
 readme = "README.md"
 keywords = ["subtitle", "subtitles"]
 categories = ["command-line-utilities"]
+exclude = ["/tests"]
 license = "MIT"
 
 [dependencies]
