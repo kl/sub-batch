@@ -1,0 +1,14 @@
+Date:   Thu Oct 15 15:21:44 2020 +0200
+
+    Version 0.2.0
+    
+    * Changed the CLI to use subcommands instead of flags.
+    * Removed the download functionality.
+
+Date:   Wed Oct 14 17:11:22 2020 +0200
+
+    Version 0.1.1
+    
+    * Fix bug where subtitles that contained non utf8 chars could not
+      be renamed.
+    * Fix bug where directories could be targeted when renaming sub files.
