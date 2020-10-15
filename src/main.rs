@@ -1,7 +1,6 @@
 mod config;
 mod scanner;
 mod commands {
-    pub mod download;
     pub mod rename;
     pub mod time;
 }
@@ -28,7 +27,6 @@ fn run() -> AnyResult<()> {
 
     // Delegate to the right command.
     match cmd_config {
-        Download(c) => download::run(global_config, c),
         Rename(c) => rename::run(global_config, c),
         Time(c) => time::run(global_config, c),
     }?;

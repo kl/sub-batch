@@ -15,10 +15,9 @@ FLAGS:
     -V, --version       Prints version information
 
 OPTIONS:
-    -p, --path <path>    The path to download to and look for subs in. [default: .]
+    -p, --path <path>    The path to look for subs in. [default: .]
 
 SUBCOMMANDS:
-    download    Downloads all subs from a kitsunekko.net page
     help        Prints this message or the help of the given subcommand(s)
     rename      Renames subtitle files to match the corresponding video file
     time        Adjusts the timing of all subs. The value is specified in milliseconds, and can be negative

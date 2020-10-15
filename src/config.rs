@@ -17,14 +17,8 @@ pub struct GlobalConfig {
 
 #[derive(Debug)]
 pub enum CommandConfig {
-    Download(DownloadConfig),
     Rename(RenameConfig),
     Time(TimeConfig),
-}
-
-#[derive(Debug)]
-pub struct DownloadConfig {
-    pub url: String,
 }
 
 #[derive(Debug)]
@@ -51,7 +45,7 @@ impl GlobalConfig {
                     .takes_value(true)
                     .global(true)
                     .default_value(".")
-                    .help("The path to download to and look for subs in."),
+                    .help("The path to look for subs in."),
             )
             .arg(
                 Arg::with_name("no_confirm")
@@ -61,15 +55,6 @@ impl GlobalConfig {
                     .help(
                         "If this flag is set sub-batch will not ask for any confirmation before \
                         applying operations.",
-                    ),
-            )
-            .subcommand(
-                SubCommand::with_name("download")
-                    .about("Downloads all subs from a kitsunekko.net page")
-                    .arg(
-                        Arg::with_name("url")
-                            .required(true)
-                            .help("The kitsunekko.net url to download subs from.")
                     ),
             )
             .subcommand(
@@ -136,9 +121,6 @@ impl GlobalConfig {
         let (subcommand_name, subcommand_matches) = check_args(&matches);
 
         let command_config = match subcommand_name {
-            "download" => CommandConfig::Download(DownloadConfig {
-                url: subcommand_matches.value_of("url").unwrap().to_string(),
-            }),
             "rename" => CommandConfig::Rename(RenameConfig {
                 video_area: area(&subcommand_matches, "video_area")?,
                 sub_area: area(&subcommand_matches, "sub_area")?,

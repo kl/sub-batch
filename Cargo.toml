@@ -13,10 +13,7 @@ exclude = ["/tests"]
 license = "MIT"
 
 [dependencies]
-reqwest = { version = "0.10.8", features = ["blocking"] }
-bytes = "0.5"
 regex = "1.1.0"
-rayon = "1.0.3"
 subparse = "0.6.2"
 clap = "2.32.0"
 lazy_static = "1.2.0"
