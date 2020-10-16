@@ -18,9 +18,12 @@ OPTIONS:
     -p, --path <path>    The path to look for subs in. [default: .]
 
 SUBCOMMANDS:
-    help        Prints this message or the help of the given subcommand(s)
-    rename      Renames subtitle files to match the corresponding video file
-    time        Adjusts the timing of all subs. The value is specified in milliseconds, and can be negative
+    alass     Adjusts the timing of all subs that are matched with a video file using `alass`
+              (https://github.com/kaegi/alass). This can automatically fix wrong timings due to commercial breaks
+              for example.
+    help      Prints this message or the help of the given subcommand(s)
+    rename    Renames subtitle files to match the corresponding video file
+    time      Adjusts the timing of all subs. The value is specified in milliseconds, and can be negative
 ```
 ### Renaming subtitle files to match their corresponding video file
 Put the subs and the videos in the same directory, for example:
@@ -71,3 +74,15 @@ which moves all subtitles forward by 100 ms, or:
 sub-batch time -50
 ```
 which moves all subtitles back by 50 ms.
+
+### Adjusting the subtitle timings using `alass`
+
+alass (https://github.com/kaegi/alass) can automatically adjust timings of a subtitle file and fix things such as gaps for commercial breaks 
+given the video file of the subtitle. To run `alass-cli` on all subtitle/video matches in parallel, run:
+```
+sub-batch alass
+```
+Arguments to `alass-cli` can be given by putting them after the alass subcommand in quotes:
+```
+sub-batch alass "--split-penalty 10"
+```

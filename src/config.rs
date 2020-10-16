@@ -19,6 +19,7 @@ pub struct GlobalConfig {
 pub enum CommandConfig {
     Rename(RenameConfig),
     Time(TimeConfig),
+    Alass(AlassConfig),
 }
 
 #[derive(Debug)]
@@ -32,6 +33,14 @@ pub struct TimeConfig {
     pub timing: i64,
     pub encoding: &'static Encoding,
     pub fps: f64,
+}
+
+#[derive(Debug)]
+pub struct AlassConfig {
+    pub flags: Vec<String>,
+    pub video_area: Option<Regex>,
+    pub sub_area: Option<Regex>,
+    pub no_parallel: bool,
 }
 
 impl GlobalConfig {
@@ -118,6 +127,55 @@ impl GlobalConfig {
                             ),
                     )
             )
+            .subcommand(
+                SubCommand::with_name("alass")
+                    .settings(&[AppSettings::AllowLeadingHyphen])
+                    .about(
+                        "Adjusts the timing of all subs that are matched with a video file using \
+                        `alass` (https://github.com/kaegi/alass). This can automatically fix \
+                        wrong timings due to commercial breaks for example."
+                    )
+                    .arg(
+                        Arg::with_name("flags")
+                            .takes_value(true)
+                            .help(
+                                "A string of flags that is passed directly to alass for each \
+                                subtitle/video adjustment. The arguments must be quoted so that \
+                                they are interpreted as a single string, for example: \
+                                \n\n  sub-batch alass \"--split-penalty 10\"",
+                            ),
+                    )
+                    .arg(
+                        Arg::with_name("video_area")
+                            .long("videoarea")
+                            .short("va")
+                            .takes_value(true)
+                            .allow_hyphen_values(true)
+                            .help(
+                                "Specifies a regular expression that defines the part of the video \
+                                filename where episode number should be extracted from.",
+                            ),
+                    )
+                    .arg(
+                        Arg::with_name("sub_area")
+                            .long("subarea")
+                            .short("sa")
+                            .takes_value(true)
+                            .allow_hyphen_values(true)
+                            .help(
+                                "Specifies a regular expression that defines the part of the \
+                                subtitle filename where episode number should be extracted from.",
+                            ),
+                    )
+                    .arg(
+                        Arg::with_name("no_parallel")
+                            .long("nopar")
+                            .takes_value(false)
+                            .help(
+                                "If this flag is set sub-batch will not execute alass in parallel."
+                            ),
+                    )
+            )
             .get_matches();
 
         let (subcommand_name, subcommand_matches) = check_args(&matches);
@@ -131,6 +189,12 @@ impl GlobalConfig {
                 timing: timing(&subcommand_matches)?,
                 encoding: encoding(&subcommand_matches)?,
                 fps: fps(&subcommand_matches)?,
+            }),
+            "alass" => CommandConfig::Alass(AlassConfig {
+                flags: alass_flags(&subcommand_matches),
+                video_area: area(&subcommand_matches, "video_area")?,
+                sub_area: area(&subcommand_matches, "sub_area")?,
+                no_parallel: subcommand_matches.is_present("no_parallel"),
             }),
             _ => unreachable!(),
         };
@@ -176,4 +240,11 @@ fn encoding(matches: &ArgMatches) -> AnyResult<&'static Encoding> {
 fn fps(matches: &ArgMatches) -> Result<f64, ParseFloatError> {
     let v = matches.value_of("fps").unwrap();
     f64::from_str(v)
+}
+
+fn alass_flags(matches: &ArgMatches) -> Vec<String> {
+    match matches.value_of("flags") {
+        None => Vec::new(),
+        Some(flags) => flags.split_ascii_whitespace().map(str::to_string).collect(),
+    }
 }

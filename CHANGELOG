@@ -1,3 +1,9 @@
+Date:   Fri Oct 16 17:01:52 2020 +0200
+
+    Version 0.3.0
+    
+    * Added command to run alass on all matched subs/videos in parallel.
+
 Date:   Fri Oct 16 13:46:37 2020 +0200
 
     Version 0.2.1

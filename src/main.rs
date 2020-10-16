@@ -1,8 +1,10 @@
 mod config;
 mod scanner;
 mod commands {
+    pub mod alass;
     pub mod rename;
     pub mod time;
+    mod util;
 }
 use crate::config::{CommandConfig, GlobalConfig};
 use anyhow::Result as AnyResult;
@@ -29,6 +31,7 @@ fn run() -> AnyResult<()> {
     match cmd_config {
         Rename(c) => rename::run(global_config, c),
         Time(c) => time::run(global_config, c),
+        Alass(c) => alass::run(global_config, c),
     }?;
 
     Ok(())
