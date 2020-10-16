@@ -1,3 +1,11 @@
+Date:   Fri Oct 16 13:46:37 2020 +0200
+
+    Version 0.2.1
+    
+    * Fix a bug where the `time` command could not take negative values.
+    * Fix a bug where the `time` command would not work if the subtitle
+      didn't have a corresponding video file.
+
 Date:   Thu Oct 15 15:21:44 2020 +0200
 
     Version 0.2.0

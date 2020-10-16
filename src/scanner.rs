@@ -80,10 +80,21 @@ pub fn scan(options: ScanOptions) -> AnyResult<Vec<SubAndFile>> {
     Ok(matched)
 }
 
-fn scan_number_files(options: &ScanOptions) -> AnyResult<Vec<PathBuf>> {
-    let entries = std::fs::read_dir(&options.path)?.collect::<io::Result<Vec<DirEntry>>>()?;
+pub fn scan_subs_only(options: ScanOptions) -> AnyResult<Vec<PathBuf>> {
+    let subs = entries(&options.path)?
+        .into_iter()
+        .map(|e| e.path())
+        .filter(|p| {
+            let ext = p.extension().and_then(OsStr::to_str).unwrap_or_default();
+            p.is_file() && EXTENSIONS.contains(&ext)
+        })
+        .collect();
 
-    let mut files: Vec<PathBuf> = entries
+    Ok(subs)
+}
+
+fn scan_number_files(options: &ScanOptions) -> AnyResult<Vec<PathBuf>> {
+    let mut files: Vec<PathBuf> = entries(&options.path)?
         .iter()
         .map(|e| e.path())
         .filter(|p| p.is_file() && NUMBER.is_match(&p.to_string_lossy()))
@@ -92,6 +103,10 @@ fn scan_number_files(options: &ScanOptions) -> AnyResult<Vec<PathBuf>> {
     files.sort();
 
     Ok(files)
+}
+
+fn entries(path: &Path) -> io::Result<Vec<DirEntry>> {
+    std::fs::read_dir(&path)?.collect::<io::Result<Vec<DirEntry>>>()
 }
 
 fn match_files(

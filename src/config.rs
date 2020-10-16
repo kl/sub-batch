@@ -1,7 +1,7 @@
 use anyhow::Result as AnyResult;
-use clap::Arg;
 use clap::ArgMatches;
 use clap::{App, SubCommand};
+use clap::{AppSettings, Arg};
 use encoding_rs::Encoding;
 use regex::Regex;
 use std::num::{ParseFloatError, ParseIntError};
@@ -85,6 +85,9 @@ impl GlobalConfig {
             )
             .subcommand(
                 SubCommand::with_name("time")
+                    // allow_hyphen_values is broken with positional arguments so we have to
+                    // set this for the entire subcommand. https://github.com/clap-rs/clap/issues/1437
+                    .settings(&[AppSettings::AllowLeadingHyphen])
                     .about(
                         "Adjusts the timing of all subs. The value is specified in milliseconds, \
                          and can be negative",
@@ -93,7 +96,6 @@ impl GlobalConfig {
                         Arg::with_name("time")
                             .required(true)
                             .takes_value(true)
-                            .allow_hyphen_values(true)
                     )
                     .arg(
                         Arg::with_name("encoding")

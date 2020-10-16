@@ -6,14 +6,14 @@ use subparse::timetypes::TimeDelta;
 use subparse::SubtitleFile;
 
 pub fn run(global_conf: GlobalConfig, conf: TimeConfig) -> AnyResult<()> {
-    let matches = scanner::scan(ScanOptions::path_only(global_conf.path))?;
+    let matches = scanner::scan_subs_only(ScanOptions::path_only(global_conf.path))?;
 
     let mut parsed_subs: Vec<SubtitleFile> = matches
         .iter()
-        .map(|s| -> AnyResult<SubtitleFile> {
-            let content = fs::read(&s.sub_path)?;
-            let format = subparse::get_subtitle_format(Some(&s.sub_ext_part), &content)
-                .ok_or_else(|| anyhow!("invalid subtitle format: {:?}", s.sub_ext_part))?;
+        .map(|path| -> AnyResult<SubtitleFile> {
+            let content = fs::read(path)?;
+            let format = subparse::get_subtitle_format(path.extension(), &content)
+                .ok_or_else(|| anyhow!("invalid subtitle format: {:?}", path.extension()))?;
 
             subparse::parse_bytes(format, &content, conf.encoding, conf.fps)
                 .map_err(|e| anyhow!("failed to parse subtitle file: {:?}", e))
@@ -35,7 +35,7 @@ pub fn run(global_conf: GlobalConfig, conf: TimeConfig) -> AnyResult<()> {
             .to_data()
             .map_err(|e| anyhow!("failed to get subtitle data: {:?}", e))?;
 
-        fs::write(&matches[i].sub_path, data)?;
+        fs::write(&matches[i], data)?;
     }
 
     Ok(())
