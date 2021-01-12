@@ -1,10 +1,17 @@
-Date:   Fri Oct 16 17:01:52 2020 +0200
+Tue Jan 12 2021
+
+    Version 0.3.1
+    
+    * Fix `alass` subcommand not working on Windows.
+    * Fix all tests not passing on Windows.
+
+Fri Oct 16 2020
 
     Version 0.3.0
     
     * Added command to run alass on all matched subs/videos in parallel.
 
-Date:   Fri Oct 16 13:46:37 2020 +0200
+Fri Oct 16 2020
 
     Version 0.2.1
     
@@ -12,14 +19,14 @@ Date:   Fri Oct 16 13:46:37 2020 +0200
     * Fix a bug where the `time` command would not work if the subtitle
       didn't have a corresponding video file.
 
-Date:   Thu Oct 15 15:21:44 2020 +0200
+Thu Oct 15 2020
 
     Version 0.2.0
     
     * Changed the CLI to use subcommands instead of flags.
     * Removed the download functionality.
 
-Date:   Wed Oct 14 17:11:22 2020 +0200
+Wed Oct 14 2020
 
     Version 0.1.1
     
