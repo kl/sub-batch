@@ -7,6 +7,7 @@ mod commands {
     mod util;
 }
 use crate::config::{CommandConfig, GlobalConfig};
+use alass::AlassCommand;
 use anyhow::Result as AnyResult;
 use commands::*;
 use CommandConfig::*;
@@ -31,7 +32,7 @@ fn run() -> AnyResult<()> {
     match cmd_config {
         Rename(c) => rename::run(global_config, c),
         Time(c) => time::run(global_config, c),
-        Alass(c) => alass::run(global_config, c),
+        Alass(c) => AlassCommand::new(global_config, c).run(),
     }?;
 
     Ok(())
