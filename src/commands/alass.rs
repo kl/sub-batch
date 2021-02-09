@@ -23,7 +23,7 @@ impl AlassCommand {
         let alass_binary = alass_binary()?;
 
         let matches = scanner::scan(ScanOptions::new(
-            self.global_conf.path.clone(),
+            &self.global_conf.path,
             self.conf.sub_area.clone(),
             self.conf.video_area.clone(),
         ))?;

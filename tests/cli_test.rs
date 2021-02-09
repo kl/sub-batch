@@ -76,7 +76,7 @@ fn can_change_timings_of_sub_files() {
 #[test]
 fn can_run_alass_on_sub_file() {
     let dir = tempdir().unwrap();
-    util::copy("./tests/alass", &dir).unwrap();
+    util::copy("./tests/dummy", &dir).unwrap();
 
     let cmd = Command::cargo_bin("sub-batch")
         .unwrap()

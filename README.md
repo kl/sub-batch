@@ -1,10 +1,10 @@
 # sub-batch
 Match and rename subtitle files to video files and perfom other batch operations on subtitle files.
 
-### Install
+## Install
 ```cargo install sub-batch```
 
-### Usage
+## Usage
 ```
 USAGE:
     sub-batch [FLAGS] [OPTIONS] [SUBCOMMAND]
@@ -24,8 +24,10 @@ SUBCOMMANDS:
     help      Prints this message or the help of the given subcommand(s)
     rename    Renames subtitle files to match the corresponding video file
     time      Adjusts the timing of all subs. The value is specified in milliseconds, and can be negative
+    time-mpv  Adjusts the timing of all subs interactively using mpv. `mpv` must be installed on the system for
+              this command to work.
 ```
-### Renaming subtitle files to match their corresponding video file
+## Renaming subtitle files to match their corresponding video file
 Put the subs and the videos in the same directory, for example:
 ```
 > ls
@@ -63,7 +65,7 @@ sub-batch rename --subarea "hood_.+"
 ```
 The regular expression given to --subarea (and --videoarea) limits the number extraction to only the part of the file name that is matched by the regular expression.
 
-### Adjusting the subtitle timings
+## Adjusting subtitle timings
 
 sub-batch can also batch adjust the timings for all subtitle files in the target directory. To do this you use the `time` subcommand, for example:
 ```
@@ -75,7 +77,17 @@ sub-batch time -50
 ```
 which moves all subtitles back by 50 ms.
 
-### Adjusting the subtitle timings using `alass`
+## Adjusting subtitle timings interactively with `mpv`
+
+If mpv (https://mpv.io) is installed sub-batch can use `mpv` to adjust timings interactively and have the updated subtitles auto-refresh in mpv. To enter this mode run:
+```
+sub-batch time-mpv
+```
+and follow the on screen instructions to adjust the timings.
+
+Note that at least one matched (same name except for extension) video file/subtilte file pair must exist in the target directory. sub-batch will only use the first matched pair it finds when adjusting, but the timing adjustment is applied to all subtitle files in the directory, same as ```sub-batch time``` command.  
+
+## Adjusting subtitle timings with `alass`
 
 alass (https://github.com/kaegi/alass) can automatically adjust timings of a subtitle file and fix things such as gaps for commercial breaks 
 given the video file of the subtitle. To run `alass-cli` on all subtitle/video matches in parallel, run:

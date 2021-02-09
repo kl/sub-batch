@@ -50,14 +50,14 @@ impl SubAndFile {
     }
 }
 
-pub struct ScanOptions {
-    path: PathBuf,
+pub struct ScanOptions<'a> {
+    path: &'a Path,
     sub_area: Option<Regex>,
     video_area: Option<Regex>,
 }
 
-impl ScanOptions {
-    pub fn new(path: PathBuf, sub_area: Option<Regex>, video_area: Option<Regex>) -> Self {
+impl<'a> ScanOptions<'a> {
+    pub fn new(path: &'a Path, sub_area: Option<Regex>, video_area: Option<Regex>) -> Self {
         Self {
             path,
             sub_area,
@@ -65,7 +65,7 @@ impl ScanOptions {
         }
     }
 
-    pub fn path_only(path: PathBuf) -> Self {
+    pub fn path_only(path: &'a Path) -> Self {
         Self {
             path,
             sub_area: None,

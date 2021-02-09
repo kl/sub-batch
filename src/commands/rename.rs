@@ -5,9 +5,9 @@ use crate::scanner::{ScanOptions, SubAndFile};
 use anyhow::Result as AnyResult;
 use std::fs;
 
-pub fn run(global_conf: GlobalConfig, conf: RenameConfig) -> AnyResult<()> {
+pub fn run(global_conf: &GlobalConfig, conf: RenameConfig) -> AnyResult<()> {
     let matches = scanner::scan(ScanOptions::new(
-        global_conf.path,
+        &global_conf.path,
         conf.sub_area,
         conf.video_area,
     ))?;

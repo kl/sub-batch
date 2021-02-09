@@ -3,6 +3,7 @@ use clap::ArgMatches;
 use clap::{App, SubCommand};
 use clap::{AppSettings, Arg};
 use encoding_rs::Encoding;
+use encoding_rs::UTF_8;
 use regex::Regex;
 use std::num::{ParseFloatError, ParseIntError};
 use std::path::PathBuf;
@@ -20,6 +21,7 @@ pub enum CommandConfig {
     Rename(RenameConfig),
     Time(TimeConfig),
     Alass(AlassConfig),
+    Mpv,
 }
 
 #[derive(Debug)]
@@ -41,6 +43,16 @@ pub struct AlassConfig {
     pub video_area: Option<Regex>,
     pub sub_area: Option<Regex>,
     pub no_parallel: bool,
+}
+
+impl TimeConfig {
+    pub fn timing(timing: i64) -> Self {
+        Self {
+            timing,
+            encoding: UTF_8,
+            fps: 25.0,
+        }
+    }
 }
 
 impl GlobalConfig {
@@ -68,7 +80,7 @@ impl GlobalConfig {
             )
             .subcommand(
                 SubCommand::with_name("rename")
-                    .about("Renames subtitle files to match the corresponding video file")
+                    .about("Renames subtitle files to match the corresponding video file.")
                     .arg(
                         Arg::with_name("video_area")
                             .long("videoarea")
@@ -99,7 +111,7 @@ impl GlobalConfig {
                     .settings(&[AppSettings::AllowLeadingHyphen])
                     .about(
                         "Adjusts the timing of all subs. The value is specified in milliseconds, \
-                         and can be negative",
+                         and can be negative.",
                     )
                     .arg(
                         Arg::with_name("time")
@@ -111,21 +123,24 @@ impl GlobalConfig {
                             .long("encoding")
                             .short("e")
                             .takes_value(true)
-                            .default_value("utf-8")
                             .help(
-                                "Needed to parse text-based subtitle formats.",
+                                "Needed to parse text-based subtitle formats. Defaults to UTF-8.",
                             ),
                     )
                     .arg(
                         Arg::with_name("fps")
                             .long("fps")
                             .takes_value(true)
-                            .default_value("25")
                             .help(
                                 "Needed for MicroDVD .sub files. Specifies the FPS that the video \
-                                file is encoded in.",
+                                file is encoded in. Defaults to 25.0",
                             ),
                     )
+            )
+            .subcommand(
+                SubCommand::with_name("time-mpv")
+                    .about("Adjusts the timing of all subs interactively using mpv. \
+                            `mpv` must be installed on the system for this command to work.")
             )
             .subcommand(
                 SubCommand::with_name("alass")
@@ -185,17 +200,23 @@ impl GlobalConfig {
                 video_area: area(&subcommand_matches, "video_area")?,
                 sub_area: area(&subcommand_matches, "sub_area")?,
             }),
-            "time" => CommandConfig::Time(TimeConfig {
-                timing: timing(&subcommand_matches)?,
-                encoding: encoding(&subcommand_matches)?,
-                fps: fps(&subcommand_matches)?,
-            }),
+            "time" => {
+                let mut tc = TimeConfig::timing(timing(&subcommand_matches)?);
+                if let Some(encoding) = encoding(&subcommand_matches) {
+                    tc.encoding = encoding?;
+                }
+                if let Some(fps) = fps(&subcommand_matches) {
+                    tc.fps = fps?;
+                }
+                CommandConfig::Time(tc)
+            }
             "alass" => CommandConfig::Alass(AlassConfig {
                 flags: alass_flags(&subcommand_matches),
                 video_area: area(&subcommand_matches, "video_area")?,
                 sub_area: area(&subcommand_matches, "sub_area")?,
                 no_parallel: subcommand_matches.is_present("no_parallel"),
             }),
+            "time-mpv" => CommandConfig::Mpv,
             _ => unreachable!(),
         };
 
@@ -232,14 +253,14 @@ fn timing(matches: &ArgMatches) -> Result<i64, ParseIntError> {
     i64::from_str(v)
 }
 
-fn encoding(matches: &ArgMatches) -> AnyResult<&'static Encoding> {
-    let v = matches.value_of("encoding").unwrap();
-    Encoding::for_label(v.as_bytes()).ok_or_else(|| anyhow!("invalid encoding"))
+fn encoding(matches: &ArgMatches) -> Option<AnyResult<&'static Encoding>> {
+    matches
+        .value_of("encoding")
+        .map(|v| Encoding::for_label(v.as_bytes()).ok_or_else(|| anyhow!("invalid encoding")))
 }
 
-fn fps(matches: &ArgMatches) -> Result<f64, ParseFloatError> {
-    let v = matches.value_of("fps").unwrap();
-    f64::from_str(v)
+fn fps(matches: &ArgMatches) -> Option<Result<f64, ParseFloatError>> {
+    matches.value_of("fps").map(|v| f64::from_str(v))
 }
 
 fn alass_flags(matches: &ArgMatches) -> Vec<String> {

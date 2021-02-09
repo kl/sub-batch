@@ -5,8 +5,8 @@ use std::fs;
 use subparse::timetypes::TimeDelta;
 use subparse::SubtitleFile;
 
-pub fn run(global_conf: GlobalConfig, conf: TimeConfig) -> AnyResult<()> {
-    let matches = scanner::scan_subs_only(ScanOptions::path_only(global_conf.path))?;
+pub fn run(global_conf: &GlobalConfig, conf: TimeConfig) -> AnyResult<()> {
+    let matches = scanner::scan_subs_only(ScanOptions::path_only(&global_conf.path))?;
 
     let mut parsed_subs: Vec<SubtitleFile> = matches
         .iter()
