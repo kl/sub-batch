@@ -12,7 +12,7 @@ use crate::config::{CommandConfig, GlobalConfig};
 use alass::AlassCommand;
 use anyhow::Result as AnyResult;
 use commands::*;
-use crossterm::terminal;
+use crossterm::{cursor, terminal, ExecutableCommand};
 use std::process;
 use CommandConfig::*;
 
@@ -27,13 +27,13 @@ fn main() {
 
     let catch = std::panic::catch_unwind(|| {
         if let Err(e) = run() {
-            let _ = terminal::disable_raw_mode();
+            restore_terminal();
             eprintln!("\nerror: {}", e);
             process::exit(1);
         }
     });
 
-    let _ = terminal::disable_raw_mode();
+    restore_terminal();
     if catch.is_err() {
         process::exit(1);
     }
@@ -41,7 +41,7 @@ fn main() {
 
 fn setup_signal_handler() {
     let handler = ctrlc::set_handler(|| {
-        let _ = terminal::disable_raw_mode();
+        restore_terminal();
         process::exit(1);
     });
 
@@ -62,4 +62,9 @@ fn run() -> AnyResult<()> {
     }?;
 
     Ok(())
+}
+
+fn restore_terminal() {
+    let _ = std::io::stdout().execute(cursor::Show);
+    let _ = terminal::disable_raw_mode();
 }

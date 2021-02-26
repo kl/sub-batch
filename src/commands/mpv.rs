@@ -8,7 +8,7 @@ use crossterm::cursor::MoveToColumn;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::style::Print;
 use crossterm::terminal::{Clear, ClearType};
-use crossterm::{event, terminal, ExecutableCommand};
+use crossterm::{cursor, event, terminal, ExecutableCommand};
 use interprocess::local_socket::LocalSocketStream;
 use std::io;
 use std::io::prelude::*;
@@ -46,9 +46,7 @@ impl MpvCommand {
 
         let mut conn = MpvConnection::connect(&socket_file)?;
 
-        terminal::enable_raw_mode()?;
         self.start_shift_loop(&mut conn)?;
-        terminal::disable_raw_mode()?;
         println!();
 
         let _ = child.kill();
@@ -65,7 +63,10 @@ impl MpvCommand {
     }
 
     fn start_shift_loop(&self, conn: &mut MpvConnection) -> AnyResult<()> {
+        terminal::enable_raw_mode()?;
+        io::stdout().execute(cursor::Hide)?;
         self.print_banner()?;
+
         let mut time_shift: i64 = 0;
 
         loop {
@@ -96,6 +97,9 @@ impl MpvCommand {
                     .execute(Print(format!("shift: {}ms", time_shift)))?;
             }
         }
+
+        io::stdout().execute(cursor::Show)?;
+        terminal::disable_raw_mode()?;
         Ok(())
     }
 
