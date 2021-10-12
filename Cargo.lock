@@ -187,6 +187,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "chardet"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a48563284b67c003ba0fb7243c87fab68885e1532c605704228a80238512e31"
+
+[[package]]
 name = "clap"
 version = "2.33.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1144,10 +1150,11 @@ dependencies = [
 
 [[package]]
 name = "subparse"
-version = "0.6.2"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85df9a5e6faca000b0e892aeaa0d899569b568eb744a4054bd3ea1d4831d0039"
+checksum = "a08e0e5404c97213cd361c86370969ca47a7ec3571509710117e707b9f7c29ab"
 dependencies = [
+ "chardet",
  "combine",
  "encoding_rs",
  "failure",

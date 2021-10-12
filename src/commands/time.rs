@@ -15,7 +15,7 @@ pub fn run(global_conf: &GlobalConfig, conf: TimeConfig) -> AnyResult<()> {
             let format = subparse::get_subtitle_format(path.extension(), &content)
                 .ok_or_else(|| anyhow!("invalid subtitle format: {:?}", path.extension()))?;
 
-            subparse::parse_bytes(format, &content, conf.encoding, conf.fps)
+            subparse::parse_bytes(format, &content, Some(conf.encoding), conf.fps)
                 .map_err(|e| anyhow!("failed to parse subtitle file: {:?}", e))
         })
         .collect::<AnyResult<_>>()?;

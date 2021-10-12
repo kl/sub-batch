@@ -14,7 +14,7 @@ license = "MIT"
 
 [dependencies]
 regex = "1.1"
-subparse = "0.6"
+subparse = "0.7"
 clap = "2.32"
 lazy_static = "1.2"
 encoding_rs = "0.8"
