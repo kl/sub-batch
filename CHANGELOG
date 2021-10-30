@@ -1,4 +1,10 @@
-Tuu Feb 11 2021
+Sat Oct 21 2021
+
+    Version 0.4.1
+
+    * Update dependencies to fix a vuln in crossbeam-deque.
+
+Tue Feb 11 2021
 
     Version 0.4.0
     
