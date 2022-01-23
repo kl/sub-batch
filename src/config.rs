@@ -14,6 +14,8 @@ use std::str::FromStr;
 pub struct GlobalConfig {
     pub path: PathBuf,
     pub no_confirm: bool,
+    pub sub_filter: Option<Regex>,
+    pub video_filter: Option<Regex>,
 }
 
 #[derive(Debug)]
@@ -66,7 +68,7 @@ impl GlobalConfig {
                     .takes_value(true)
                     .global(true)
                     .default_value(".")
-                    .help("The path to look for subs in."),
+                    .help("The path to look for subs/videos in."),
             )
             .arg(
                 Arg::with_name("no_confirm")
@@ -74,8 +76,26 @@ impl GlobalConfig {
                     .short("y")
                     .takes_value(false)
                     .help(
-                        "If this flag is set sub-batch will not ask for any confirmation before \
-                        applying operations.",
+                        "Only videos with file names that match this regex will be targeted by \
+                        any of the SUBCOMMANDS.",
+                    ),
+            )
+            .arg(Arg::with_name("filter_sub")
+                    .long("filter-sub")
+                    .short("s")
+                    .takes_value(true)
+                    .help(
+                        "Only subtiles with file names that match this regex will be targeted by \
+                        any of the SUBCOMMANDS.",
+                    ),
+            )
+            .arg(Arg::with_name("filter_video")
+                    .long("filter-video")
+                    .short("v")
+                    .takes_value(true)
+                    .help(
+                        "A regular expression which, if given, must match the file name of a video file \
+                        for that video file to be targeted by any of the SUBCOMMANDS.",
                     ),
             )
             .subcommand(
@@ -89,7 +109,7 @@ impl GlobalConfig {
                             .allow_hyphen_values(true)
                             .help(
                                 "Specifies a regular expression that defines the part of the video \
-                                filename where episode number should be extracted from.",
+                                filename where the episode number should be extracted from.",
                             ),
                     )
                     .arg(
@@ -100,7 +120,7 @@ impl GlobalConfig {
                             .allow_hyphen_values(true)
                             .help(
                                 "Specifies a regular expression that defines the part of the \
-                                subtitle filename where episode number should be extracted from.",
+                                subtitle filename where the episode number should be extracted from.",
                             ),
                     )
             )
@@ -197,23 +217,23 @@ impl GlobalConfig {
 
         let command_config = match subcommand_name {
             "rename" => CommandConfig::Rename(RenameConfig {
-                video_area: area(&subcommand_matches, "video_area")?,
-                sub_area: area(&subcommand_matches, "sub_area")?,
+                video_area: regex_arg(subcommand_matches, "video_area")?,
+                sub_area: regex_arg(subcommand_matches, "sub_area")?,
             }),
             "time" => {
-                let mut tc = TimeConfig::timing(timing(&subcommand_matches)?);
-                if let Some(encoding) = encoding(&subcommand_matches) {
+                let mut tc = TimeConfig::timing(timing(subcommand_matches)?);
+                if let Some(encoding) = encoding(subcommand_matches) {
                     tc.encoding = encoding?;
                 }
-                if let Some(fps) = fps(&subcommand_matches) {
+                if let Some(fps) = fps(subcommand_matches) {
                     tc.fps = fps?;
                 }
                 CommandConfig::Time(tc)
             }
             "alass" => CommandConfig::Alass(AlassConfig {
-                flags: alass_flags(&subcommand_matches),
-                video_area: area(&subcommand_matches, "video_area")?,
-                sub_area: area(&subcommand_matches, "sub_area")?,
+                flags: alass_flags(subcommand_matches),
+                video_area: regex_arg(subcommand_matches, "video_area")?,
+                sub_area: regex_arg(subcommand_matches, "sub_area")?,
                 no_parallel: subcommand_matches.is_present("no_parallel"),
             }),
             "time-mpv" => CommandConfig::Mpv,
@@ -224,6 +244,8 @@ impl GlobalConfig {
             GlobalConfig {
                 path: matches.value_of("path").unwrap().into(),
                 no_confirm: matches.is_present("no_confirm"),
+                sub_filter: regex_arg(&matches, "filter_sub")?,
+                video_filter: regex_arg(&matches, "filter_video")?,
             },
             command_config,
         ))
@@ -240,7 +262,7 @@ fn check_args<'a>(matches: &'a ArgMatches) -> (&'a str, &'a ArgMatches<'a>) {
     }
 }
 
-fn area(matches: &ArgMatches, key: &str) -> AnyResult<Option<Regex>> {
+fn regex_arg(matches: &ArgMatches, key: &str) -> AnyResult<Option<Regex>> {
     Ok(if let Some(v) = matches.value_of(key) {
         Some(Regex::new(v)?)
     } else {
@@ -260,7 +282,7 @@ fn encoding(matches: &ArgMatches) -> Option<AnyResult<&'static Encoding>> {
 }
 
 fn fps(matches: &ArgMatches) -> Option<Result<f64, ParseFloatError>> {
-    matches.value_of("fps").map(|v| f64::from_str(v))
+    matches.value_of("fps").map(f64::from_str)
 }
 
 fn alass_flags(matches: &ArgMatches) -> Vec<String> {

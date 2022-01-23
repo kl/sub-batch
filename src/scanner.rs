@@ -51,27 +51,11 @@ impl SubAndFile {
 }
 
 pub struct ScanOptions<'a> {
-    path: &'a Path,
-    sub_area: Option<Regex>,
-    video_area: Option<Regex>,
-}
-
-impl<'a> ScanOptions<'a> {
-    pub fn new(path: &'a Path, sub_area: Option<Regex>, video_area: Option<Regex>) -> Self {
-        Self {
-            path,
-            sub_area,
-            video_area,
-        }
-    }
-
-    pub fn path_only(path: &'a Path) -> Self {
-        Self {
-            path,
-            sub_area: None,
-            video_area: None,
-        }
-    }
+    pub path: &'a Path,
+    pub sub_area: Option<&'a Regex>,
+    pub video_area: Option<&'a Regex>,
+    pub sub_filter: Option<&'a Regex>,
+    pub video_filter: Option<&'a Regex>,
 }
 
 pub fn scan(options: ScanOptions) -> AnyResult<Vec<SubAndFile>> {
@@ -80,21 +64,8 @@ pub fn scan(options: ScanOptions) -> AnyResult<Vec<SubAndFile>> {
     Ok(matched)
 }
 
-pub fn scan_subs_only(options: ScanOptions) -> AnyResult<Vec<PathBuf>> {
-    let subs = entries(&options.path)?
-        .into_iter()
-        .map(|e| e.path())
-        .filter(|p| {
-            let ext = p.extension().and_then(OsStr::to_str).unwrap_or_default();
-            p.is_file() && EXTENSIONS.contains(&ext)
-        })
-        .collect();
-
-    Ok(subs)
-}
-
 fn scan_number_files(options: &ScanOptions) -> AnyResult<Vec<PathBuf>> {
-    let mut files: Vec<PathBuf> = entries(&options.path)?
+    let mut files: Vec<PathBuf> = entries(options.path)?
         .iter()
         .map(|e| e.path())
         .filter(|p| p.is_file() && NUMBER.is_match(&p.to_string_lossy()))
@@ -103,6 +74,20 @@ fn scan_number_files(options: &ScanOptions) -> AnyResult<Vec<PathBuf>> {
     files.sort();
 
     Ok(files)
+}
+
+pub fn scan_subs_only(options: ScanOptions) -> AnyResult<Vec<PathBuf>> {
+    let subs = entries(options.path)?
+        .into_iter()
+        .map(|e| e.path())
+        .filter(|p| {
+            let ext = p.extension().and_then(OsStr::to_str).unwrap_or_default();
+            p.is_file() && EXTENSIONS.contains(&ext)
+        })
+        .filter(|sub| regex_matches_file_name(options.sub_filter, sub))
+        .collect();
+
+    Ok(subs)
 }
 
 fn entries(path: &Path) -> io::Result<Vec<DirEntry>> {
@@ -114,16 +99,21 @@ fn match_files(
     files_with_numbers: &[PathBuf],
 ) -> AnyResult<Vec<SubAndFile>> {
     // Separate subtitle files from non-subtitle files.
-    let (mut subs, mut others): (Vec<&PathBuf>, Vec<&PathBuf>) =
+    let (subs, others): (Vec<&PathBuf>, Vec<&PathBuf>) =
         files_with_numbers.iter().partition(|file| {
-            EXTENSIONS.iter().any(|ext| {
-                if let Some(file_ext) = file.extension().and_then(OsStr::to_str) {
-                    &file_ext == ext
-                } else {
-                    false
-                }
-            })
+            let ext = file.extension().and_then(OsStr::to_str).unwrap_or_default();
+            EXTENSIONS.contains(&ext)
         });
+
+    // Remove files that don't match the filters.
+    let mut subs = subs
+        .into_iter()
+        .filter(|sub| regex_matches_file_name(options.sub_filter, sub))
+        .collect();
+    let mut others = others
+        .into_iter()
+        .filter(|other| regex_matches_file_name(options.video_filter, other))
+        .collect();
 
     // Find subs that already match their video files and return and remove them from subs
     // and others.
@@ -154,6 +144,16 @@ fn match_files(
 
     sub_and_files.append(&mut already_matched);
     Ok(sub_and_files)
+}
+
+fn regex_matches_file_name(regex: Option<&Regex>, path: &Path) -> bool {
+    match regex {
+        Some(regex) => match try_extract_file_name(path) {
+            Ok(file_name) => regex.is_match(&file_name),
+            _ => false,
+        },
+        None => true,
+    }
 }
 
 fn extract_already_matched(
@@ -187,7 +187,7 @@ fn split_extension(path: &Path) -> Option<(&OsStr, &OsStr)> {
 
 fn find_areas<'a>(
     paths: Vec<&'a PathBuf>,
-    area_matcher: &Option<Regex>,
+    area_matcher: &Option<&Regex>,
 ) -> AnyResult<Vec<PathAndArea<'a>>> {
     paths
         .iter()
@@ -198,22 +198,26 @@ fn find_areas<'a>(
         .collect::<AnyResult<_>>()
 }
 
-fn try_extract_area(path: &Path, regex: &Option<Regex>) -> AnyResult<String> {
-    let stem: String = path
-        .file_stem()
-        .ok_or_else(|| anyhow!("file {} has an invalid file name", path.to_string_lossy()))?
-        .to_string_lossy()
-        .to_string();
+fn try_extract_area(path: &Path, regex: &Option<&Regex>) -> AnyResult<String> {
+    let name = try_extract_file_name(path)?;
 
     if let Some(r) = regex {
-        if let Some(m) = r.find(&stem) {
+        if let Some(m) = r.find(&name) {
             Ok(m.as_str().into())
         } else {
-            bail!("failed to match regex {} on text: {}", r, stem);
+            bail!("failed to match regex {} on text: {}", r, name);
         }
     } else {
-        Ok(stem)
+        Ok(name)
     }
+}
+
+fn try_extract_file_name(path: &Path) -> AnyResult<String> {
+    Ok(path
+        .file_name()
+        .ok_or_else(|| anyhow!("file {} has an invalid file name", path.to_string_lossy()))?
+        .to_string_lossy()
+        .to_string())
 }
 
 #[derive(Debug)]

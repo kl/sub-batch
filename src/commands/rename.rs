@@ -6,11 +6,13 @@ use anyhow::Result as AnyResult;
 use std::fs;
 
 pub fn run(global_conf: &GlobalConfig, conf: RenameConfig) -> AnyResult<()> {
-    let matches = scanner::scan(ScanOptions::new(
-        &global_conf.path,
-        conf.sub_area,
-        conf.video_area,
-    ))?;
+    let matches = scanner::scan(ScanOptions {
+        path: &global_conf.path,
+        sub_area: conf.sub_area.as_ref(),
+        video_area: conf.video_area.as_ref(),
+        sub_filter: global_conf.sub_filter.as_ref(),
+        video_filter: global_conf.video_filter.as_ref(),
+    })?;
 
     let renames: Vec<SubAndFile> = matches
         .into_iter()

@@ -2,6 +2,14 @@
 Match and rename subtitle files to video files and perfom other batch operations on subtitle files.
 
 ## Install
+
+### Precompiled binaries (Linux and Windows)
+https://github.com/kl/sub-batch/releases
+
+### Nix package (credit to: https://github.com/erictapen)
+https://github.com/NixOS/nixpkgs/blob/master/pkgs/applications/video/sub-batch/default.nix
+
+### Cargo
 ```cargo install sub-batch```
 
 ## Usage
@@ -15,17 +23,21 @@ FLAGS:
     -V, --version       Prints version information
 
 OPTIONS:
-    -p, --path <path>    The path to look for subs in. [default: .]
+    -s, --filter-sub <filter_sub>        A regular expression which, if given, must match the file name of a subtitle
+                                         for that subtitle to be targeted by any of the SUBCOMMANDS.
+    -v, --filter-video <filter_video>    A regular expression which, if given, must match the file name of a video file
+                                         for that video file to be targeted by any of the SUBCOMMANDS.
+    -p, --path <path>                    The path to look for subs/videos in. [default: .]
 
 SUBCOMMANDS:
-    alass     Adjusts the timing of all subs that are matched with a video file using `alass`
-              (https://github.com/kaegi/alass). This can automatically fix wrong timings due to commercial breaks
-              for example.
-    help      Prints this message or the help of the given subcommand(s)
-    rename    Renames subtitle files to match the corresponding video file
-    time      Adjusts the timing of all subs. The value is specified in milliseconds, and can be negative
-    time-mpv  Adjusts the timing of all subs interactively using mpv. `mpv` must be installed on the system for
-              this command to work.
+    alass       Adjusts the timing of all subs that are matched with a video file using `alass`
+                (https://github.com/kaegi/alass). This can automatically fix wrong timings due to commercial breaks
+                for example.
+    help        Prints this message or the help of the given subcommand(s)
+    rename      Renames subtitle files to match the corresponding video file.
+    time        Adjusts the timing of all subs. The value is specified in milliseconds, and can be negative.
+    time-mpv    Adjusts the timing of all subs interactively using mpv. `mpv` must be installed on the system for
+                this command to work.
 ```
 ## Renaming subtitle files to match their corresponding video file
 Put the subs and the videos in the same directory, for example:
@@ -76,6 +88,15 @@ which moves all subtitles forward by 100 ms, or:
 sub-batch time -50
 ```
 which moves all subtitles back by 50 ms.
+
+## Targeting only certain subtiles/videos
+
+You can give a regex to filter the subs/videos that should be included when running any of the subcommands.
+For example, to only change timings of subtiles in the target directory that has "SUB" in the filename:
+```
+sub-batch --filter-sub SUB time -50
+```
+Any other subtiles files in the target directory are ignored. Video files can be filtered the same way with the ```--filter-video``` option.
 
 ## Adjusting subtitle timings interactively with `mpv`
 

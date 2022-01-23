@@ -67,6 +67,6 @@ pub fn files_in<P: AsRef<Path>>(path: P) -> Vec<String> {
         .collect::<Result<Vec<PathBuf>, glob::GlobError>>()
         .unwrap()
         .into_iter()
-        .map(|p: PathBuf| p.file_name().unwrap().to_str().unwrap().to_owned())
+        .map(|p: PathBuf| p.file_name().unwrap().to_string_lossy().to_string())
         .collect()
 }

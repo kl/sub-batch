@@ -16,7 +16,7 @@ fn can_rename_sub_file_that_contains_invalid_utf8() {
         .arg("-y")
         .arg("rename")
         .arg("--subarea")
-        .arg("\\d{2}$")
+        .arg("\\d{2}\\.srt")
         .assert()
         .success();
 
@@ -24,6 +24,27 @@ fn can_rename_sub_file_that_contains_invalid_utf8() {
     assert_eq!(files.len(), 2);
     assert!(files.contains(&"test_01_fake_video.mp4".to_string()));
     assert!(files.contains(&"test_01_fake_video.srt".to_string()));
+}
+
+#[test]
+fn rename_does_not_happen_when_filter_is_not_matching() {
+    let dir = tempdir().unwrap();
+    util::copy("./tests/rename", &dir).unwrap();
+
+    Command::cargo_bin("sub-batch")
+        .unwrap()
+        .current_dir(&dir)
+        .arg("--filter-video")
+        .arg("non-matching-regex")
+        .arg("-y")
+        .arg("rename")
+        .assert()
+        .success();
+
+    let files = util::files_in(&dir);
+    assert_eq!(files.len(), 2);
+    assert!(files.contains(&"sample-video-01.mp4".to_string()));
+    assert!(files.contains(&"sub01.srt".to_string()));
 }
 
 #[test]
@@ -61,16 +82,30 @@ fn can_change_timings_of_sub_files() {
     let second_t = timings(&second_text);
     assert_eq!(second_t[0].0, "00:12:33,488");
     assert_eq!(second_t[1].1, "00:12:40,161");
+}
 
-    fn timings(sub: &str) -> Vec<(String, String)> {
-        sub.lines()
-            .filter(|l| l.contains(" --> "))
-            .map(|l| {
-                let split = l.split(" --> ").collect::<Vec<_>>();
-                (split[0].to_string(), split[1].to_string())
-            })
-            .collect()
-    }
+#[test]
+fn timings_do_not_change_when_filter_is_not_matching() {
+    let dir = tempdir().unwrap();
+    util::copy("./tests/time_subs_only", &dir).unwrap();
+    let files = util::files_in(&dir);
+
+    Command::cargo_bin("sub-batch")
+        .unwrap()
+        .current_dir(&dir)
+        .arg("--filter-sub")
+        .arg("non-matching-regex")
+        .arg("time")
+        .arg("100")
+        .assert()
+        .success();
+
+    let first = files.iter().find(|f| f.contains("sub.srt")).unwrap();
+    let first_text = std::fs::read_to_string(&dir.path().join(first)).unwrap();
+
+    let first_t = timings(&first_text);
+    assert_eq!(first_t[0].0, "00:02:33,000");
+    assert_eq!(first_t[2].1, "00:02:44,650");
 }
 
 #[test]
@@ -95,4 +130,14 @@ fn can_run_alass_on_sub_file() {
             "could not find any of the following in PATH",
         ));
     }
+}
+
+fn timings(sub: &str) -> Vec<(String, String)> {
+    sub.lines()
+        .filter(|l| l.contains(" --> "))
+        .map(|l| {
+            let split = l.split(" --> ").collect::<Vec<_>>();
+            (split[0].to_string(), split[1].to_string())
+        })
+        .collect()
 }

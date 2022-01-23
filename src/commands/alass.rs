@@ -22,11 +22,13 @@ impl AlassCommand {
     pub fn run(&self) -> AnyResult<()> {
         let alass_binary = alass_binary()?;
 
-        let matches = scanner::scan(ScanOptions::new(
-            &self.global_conf.path,
-            self.conf.sub_area.clone(),
-            self.conf.video_area.clone(),
-        ))?;
+        let matches = scanner::scan(ScanOptions {
+            path: &self.global_conf.path,
+            sub_area: self.conf.sub_area.as_ref(),
+            video_area: self.conf.video_area.as_ref(),
+            sub_filter: self.global_conf.sub_filter.as_ref(),
+            video_filter: self.global_conf.video_filter.as_ref(),
+        })?;
 
         if matches.is_empty() {
             return Ok(());
@@ -40,7 +42,7 @@ impl AlassCommand {
             } else {
                 matches
                     .par_iter()
-                    .try_for_each(|m| self.align(&alass_binary, &m))?;
+                    .try_for_each(|m| self.align(&alass_binary, m))?;
             }
         }
 

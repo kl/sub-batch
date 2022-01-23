@@ -6,7 +6,13 @@ use subparse::timetypes::TimeDelta;
 use subparse::SubtitleFile;
 
 pub fn run(global_conf: &GlobalConfig, conf: TimeConfig) -> AnyResult<()> {
-    let matches = scanner::scan_subs_only(ScanOptions::path_only(&global_conf.path))?;
+    let matches = scanner::scan_subs_only(ScanOptions {
+        path: &global_conf.path,
+        sub_filter: global_conf.sub_filter.as_ref(),
+        video_filter: global_conf.video_filter.as_ref(),
+        sub_area: None,
+        video_area: None,
+    })?;
 
     let mut parsed_subs: Vec<SubtitleFile> = matches
         .iter()

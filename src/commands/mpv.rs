@@ -55,7 +55,13 @@ impl MpvCommand {
     }
 
     fn first_sub_video_match(&self) -> AnyResult<SubAndFile> {
-        let mut matches = scanner::scan(ScanOptions::path_only(&self.global_conf.path))?;
+        let mut matches = scanner::scan(ScanOptions {
+            path: &self.global_conf.path,
+            sub_filter: self.global_conf.sub_filter.as_ref(),
+            video_filter: self.global_conf.video_filter.as_ref(),
+            sub_area: None,
+            video_area: None,
+        })?;
         if matches.is_empty() {
             bail!("must have at least one matching video/subtitle file pair");
         }

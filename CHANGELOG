@@ -1,3 +1,11 @@
+Sun Jan 22 2022
+
+    Version 1.0.0
+
+    * Add options --filter-video and --filter-sub to be able to only include
+      subs/videos that match a given regular expression.
+    * Rust 2021
+
 Sat Oct 21 2021
 
     Version 0.4.1
