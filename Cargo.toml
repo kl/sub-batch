@@ -1,7 +1,7 @@
 [package]
 edition = "2021"
 name = "sub-batch"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Kalle Lindström <kalind@posteo.se>"]
 description = "Match and rename subtitle files to video files and perfom other batch operations on subtitle files."
 homepage = "https://github.com/kl/sub-batch"
@@ -23,7 +23,7 @@ which = "4"
 rayon = "1"
 tempfile = "3"
 interprocess = "1"
-crossterm = "0.22"
+crossterm = "0.25"
 ctrlc = { version = "3", features = ["termination"] }
 
 [dev-dependencies]

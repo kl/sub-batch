@@ -1,3 +1,4 @@
+use crate::commands::util;
 use crate::config::{GlobalConfig, TimeConfig};
 use crate::scanner;
 use crate::scanner::{ScanOptions, SubAndFile};
@@ -5,7 +6,7 @@ use crate::time;
 use anyhow::Context;
 use anyhow::Result as AnyResult;
 use crossterm::cursor::MoveToColumn;
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::style::Print;
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{cursor, event, terminal, ExecutableCommand};
@@ -62,9 +63,7 @@ impl MpvCommand {
             sub_area: None,
             video_area: None,
         })?;
-        if matches.is_empty() {
-            bail!("must have at least one matching video/subtitle file pair");
-        }
+        util::validate_sub_and_file_matches(&self.global_conf, &matches)?;
         Ok(matches.swap_remove(0))
     }
 
@@ -84,6 +83,8 @@ impl MpvCommand {
             if let Event::Key(KeyEvent {
                 code: KeyCode::Char(char),
                 modifiers,
+                kind: KeyEventKind::Press,
+                ..
             }) = event
             {
                 time_shift += match char {

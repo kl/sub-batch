@@ -1,3 +1,4 @@
+use crate::commands::util;
 use crate::config::{GlobalConfig, TimeConfig};
 use crate::scanner::{self, ScanOptions};
 use anyhow::Result as AnyResult;
@@ -13,6 +14,8 @@ pub fn run(global_conf: &GlobalConfig, conf: TimeConfig) -> AnyResult<()> {
         sub_area: None,
         video_area: None,
     })?;
+
+    util::validate_sub_matches(global_conf, &matches)?;
 
     let mut parsed_subs: Vec<SubtitleFile> = matches
         .iter()

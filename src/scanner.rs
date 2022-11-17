@@ -10,7 +10,11 @@ lazy_static! {
     static ref NUMBER: Regex = Regex::new(r"\d+").unwrap();
 }
 
-static EXTENSIONS: &[&str] = &["ssa", "ass", "sub", "srt", "idx"];
+static EXTENSIONS: &[&str] = &[
+    "cdg", "idx", "srt", "sub", "utf", "ass", "ssa", "aqt", "jss", "psb", "rt", "sami", "smi",
+    "smil", "stl", "usf", "dks", "pjs", "mpl2", "mks", "vtt", "tt", "ttml", "dfxp", "scc", "itt",
+    "sbv", "aaf", "mcc", "mxf", "asc", "cap", "onl", "cin", "ult", "scr", "sst", "nav", "son",
+];
 
 #[derive(Debug)]
 pub struct SubAndFile {

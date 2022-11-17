@@ -39,7 +39,7 @@ fn rename_does_not_happen_when_filter_is_not_matching() {
         .arg("-y")
         .arg("rename")
         .assert()
-        .success();
+        .failure();
 
     let files = util::files_in(&dir);
     assert_eq!(files.len(), 2);
@@ -98,7 +98,7 @@ fn timings_do_not_change_when_filter_is_not_matching() {
         .arg("time")
         .arg("100")
         .assert()
-        .success();
+        .failure();
 
     let first = files.iter().find(|f| f.contains("sub.srt")).unwrap();
     let first_text = std::fs::read_to_string(&dir.path().join(first)).unwrap();

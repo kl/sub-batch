@@ -14,14 +14,12 @@ pub fn run(global_conf: &GlobalConfig, conf: RenameConfig) -> AnyResult<()> {
         video_filter: global_conf.video_filter.as_ref(),
     })?;
 
+    util::validate_sub_and_file_matches_ignore_extensions(global_conf, &matches)?;
+
     let renames: Vec<SubAndFile> = matches
         .into_iter()
         .filter(|re| re.sub_file_part != re.file_file_part)
         .collect();
-
-    if renames.is_empty() {
-        return Ok(());
-    }
 
     if global_conf.no_confirm || util::ask_user_ok(&renames)? {
         for rename in renames.iter() {

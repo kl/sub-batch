@@ -30,9 +30,7 @@ impl AlassCommand {
             video_filter: self.global_conf.video_filter.as_ref(),
         })?;
 
-        if matches.is_empty() {
-            return Ok(());
-        }
+        util::validate_sub_and_file_matches(&self.global_conf, &matches)?;
 
         if self.global_conf.no_confirm || util::ask_user_ok(&matches)? {
             if self.conf.no_parallel {
