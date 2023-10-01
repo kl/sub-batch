@@ -6,24 +6,22 @@ use tempfile::tempdir;
 mod util;
 
 #[test]
-fn can_rename_sub_file_that_contains_invalid_utf8() {
+fn can_rename_sub_file() {
     let dir = tempdir().unwrap();
-    util::copy("./tests/rename_invalid_utf8", &dir).unwrap();
+    util::copy("./tests/rename", &dir).unwrap();
 
     Command::cargo_bin("sub-batch")
         .unwrap()
         .current_dir(&dir)
         .arg("-y")
         .arg("rename")
-        .arg("--subarea")
-        .arg("\\d{2}\\.srt")
         .assert()
         .success();
 
     let files = util::files_in(&dir);
     assert_eq!(files.len(), 2);
-    assert!(files.contains(&"test_01_fake_video.mp4".to_string()));
-    assert!(files.contains(&"test_01_fake_video.srt".to_string()));
+    assert!(files.contains(&"sample-video-01.mp4".to_string()));
+    assert!(files.contains(&"sample-video-01.srt".to_string()));
 }
 
 #[test]
@@ -45,6 +43,27 @@ fn rename_does_not_happen_when_filter_is_not_matching() {
     assert_eq!(files.len(), 2);
     assert!(files.contains(&"sample-video-01.mp4".to_string()));
     assert!(files.contains(&"sub01.srt".to_string()));
+}
+
+#[test]
+fn can_rename_sub_file_that_contains_invalid_utf8() {
+    let dir = tempdir().unwrap();
+    util::copy("./tests/rename_invalid_utf8", &dir).unwrap();
+
+    Command::cargo_bin("sub-batch")
+        .unwrap()
+        .current_dir(&dir)
+        .arg("-y")
+        .arg("rename")
+        .arg("--subarea")
+        .arg("\\d{2}\\.srt")
+        .assert()
+        .success();
+
+    let files = util::files_in(&dir);
+    assert_eq!(files.len(), 2);
+    assert!(files.contains(&"test_01_fake_video.mp4".to_string()));
+    assert!(files.contains(&"test_01_fake_video.srt".to_string()));
 }
 
 #[test]

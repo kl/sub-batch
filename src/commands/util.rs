@@ -1,27 +1,32 @@
 use crate::config::GlobalConfig;
-use crate::scanner::SubAndFile;
+use crate::scanner::MatchInfo;
 use anyhow::Result as AnyResult;
 use core::result::Result::Ok;
+use crossterm::style::Stylize;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 // these are the formats that subparse currently supports
 pub static SUBPARSE_SUPPORTED_SUBTITLE_FORMATS: &[&str] = &["ssa", "ass", "sub", "srt", "idx"];
 
-pub fn ask_user_ok(renames: &[SubAndFile]) -> AnyResult<bool> {
+pub fn ask_user_ok(renames: &[MatchInfo]) -> AnyResult<bool> {
     for rename in renames.iter() {
-        println!(
-            "{} -> {}",
-            rename.sub_path.to_string_lossy(),
-            rename.file_path.to_string_lossy()
-        );
+        let (sub_before, sub_match, sub_after) = rename.sub_match_parts();
+        let (vid_before, vid_match, vid_after) = rename.vid_match_parts();
+
+        print!("{sub_before}");
+        print!("{}", sub_match.black().bold().on_yellow());
+        print!("{sub_after} -> ");
+        print!("{vid_before}");
+        print!("{}", vid_match.black().bold().on_yellow());
+        println!("{vid_after}");
     }
-    println!("Ok? (y/n)");
+    println!("Ok? (Y/n)");
 
     let mut input = String::new();
     std::io::stdin().read_line(&mut input)?;
 
-    Ok(input.to_lowercase().starts_with('y'))
+    Ok(input.split_whitespace().next().is_none() || input.to_lowercase().starts_with('y'))
 }
 
 pub fn validate_sub_matches(global_conf: &GlobalConfig, matches: &[PathBuf]) -> AnyResult<()> {
@@ -34,17 +39,17 @@ pub fn validate_sub_matches(global_conf: &GlobalConfig, matches: &[PathBuf]) -> 
 
 pub fn validate_sub_and_file_matches(
     global_conf: &GlobalConfig,
-    matches: &[SubAndFile],
+    matches: &[MatchInfo],
 ) -> AnyResult<()> {
     validate_sub_and_file_matches_ignore_extensions(global_conf, matches)?;
-    let sub_files: Vec<&PathBuf> = matches.iter().map(|m| &m.sub_path).collect();
+    let sub_files: Vec<&PathBuf> = matches.iter().map(|m| &m.matched.sub_path).collect();
     validate_sub_extensions(&sub_files)?;
     Ok(())
 }
 
 pub fn validate_sub_and_file_matches_ignore_extensions(
     global_conf: &GlobalConfig,
-    matches: &[SubAndFile],
+    matches: &[MatchInfo],
 ) -> AnyResult<()> {
     if matches.is_empty() {
         bail!(
@@ -69,7 +74,7 @@ fn has_subparse_supported_subtitle_formats(matches: &[impl AsRef<Path>]) -> bool
     matches.iter().all(|m| {
         m.as_ref()
             .extension()
-            .and_then(&OsStr::to_str)
+            .and_then(OsStr::to_str)
             .map(|ext| SUBPARSE_SUPPORTED_SUBTITLE_FORMATS.contains(&ext))
             == Some(true)
     })

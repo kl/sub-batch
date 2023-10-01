@@ -1,7 +1,7 @@
 use crate::commands::util;
 use crate::config::{GlobalConfig, RenameConfig};
 use crate::scanner;
-use crate::scanner::{ScanOptions, SubAndFile};
+use crate::scanner::{MatchInfo, ScanOptions};
 use anyhow::Result as AnyResult;
 use std::fs;
 
@@ -16,15 +16,18 @@ pub fn run(global_conf: &GlobalConfig, conf: RenameConfig) -> AnyResult<()> {
 
     util::validate_sub_and_file_matches_ignore_extensions(global_conf, &matches)?;
 
-    let renames: Vec<SubAndFile> = matches
+    let renames: Vec<MatchInfo> = matches
         .into_iter()
-        .filter(|re| re.sub_file_part != re.file_file_part)
+        .filter(|re| re.matched.sub_file_part != re.matched.vid_file_part)
         .collect();
 
     if global_conf.no_confirm || util::ask_user_ok(&renames)? {
         for rename in renames.iter() {
-            let new_name = rename.file_path.with_extension(&rename.sub_ext_part);
-            fs::rename(&rename.sub_path, new_name)?;
+            let new_name = rename
+                .matched
+                .vid_path
+                .with_extension(&rename.matched.sub_ext_part);
+            fs::rename(&rename.matched.sub_path, new_name)?;
         }
     }
 

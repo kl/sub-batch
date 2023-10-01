@@ -1,7 +1,7 @@
 use crate::commands::util;
 use crate::config::{AlassConfig, GlobalConfig};
 use crate::scanner;
-use crate::scanner::{ScanOptions, SubAndFile};
+use crate::scanner::{ScanOptions, SubAndVid};
 use anyhow::Result as AnyResult;
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
@@ -35,22 +35,22 @@ impl AlassCommand {
         if self.global_conf.no_confirm || util::ask_user_ok(&matches)? {
             if self.conf.no_parallel {
                 for m in matches {
-                    self.align(&alass_binary, &m)?;
+                    self.align(&alass_binary, &m.matched)?;
                 }
             } else {
                 matches
                     .par_iter()
-                    .try_for_each(|m| self.align(&alass_binary, m))?;
+                    .try_for_each(|m| self.align(&alass_binary, &m.matched))?;
             }
         }
 
         Ok(())
     }
 
-    fn align(&self, alass_binary: &Path, target: &SubAndFile) -> AnyResult<()> {
-        let mut cmd = Command::new(&alass_binary);
+    fn align(&self, alass_binary: &Path, target: &SubAndVid) -> AnyResult<()> {
+        let mut cmd = Command::new(alass_binary);
 
-        cmd.arg(&target.file_path)
+        cmd.arg(&target.vid_path)
             .arg(&target.sub_path)
             .arg(&target.sub_path);
 

@@ -1,7 +1,7 @@
 use crate::commands::util;
 use crate::config::{GlobalConfig, TimeConfig};
 use crate::scanner;
-use crate::scanner::{ScanOptions, SubAndFile};
+use crate::scanner::{MatchInfo, ScanOptions};
 use crate::time;
 use anyhow::Context;
 use anyhow::Result as AnyResult;
@@ -37,8 +37,8 @@ impl MpvCommand {
         let target = self.first_sub_video_match()?;
         let socket_file = mpv_socket_file()?;
 
-        let mut child = Command::new(&mpv)
-            .arg(&target.file_path)
+        let mut child = Command::new(mpv)
+            .arg(&target.matched.vid_path)
             .arg(format!("--input-ipc-server={}", socket_file.display()))
             .stdout(Stdio::null())
             .stderr(Stdio::null())
@@ -55,7 +55,7 @@ impl MpvCommand {
         Ok(())
     }
 
-    fn first_sub_video_match(&self) -> AnyResult<SubAndFile> {
+    fn first_sub_video_match(&self) -> AnyResult<MatchInfo> {
         let mut matches = scanner::scan(ScanOptions {
             path: &self.global_conf.path,
             sub_filter: self.global_conf.sub_filter.as_ref(),
