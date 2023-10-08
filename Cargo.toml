@@ -1,7 +1,7 @@
 [package]
 edition = "2021"
 name = "sub-batch"
-version = "1.1.0"
+version = "1.1.1"
 authors = ["Kalle Lindström <kalind@posteo.se>"]
 description = "Match and rename subtitle files to video files and perfom other batch operations on subtitle files."
 homepage = "https://github.com/kl/sub-batch"

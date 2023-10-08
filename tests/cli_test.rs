@@ -1,6 +1,8 @@
 use assert_cmd::prelude::*;
 use predicates::prelude::*;
 use std::process::Command;
+use std::thread;
+use std::time::Duration;
 use tempfile::tempdir;
 
 mod util;
@@ -132,23 +134,57 @@ fn can_run_alass_on_sub_file() {
     let dir = tempdir().unwrap();
     util::copy("./tests/dummy", &dir).unwrap();
 
-    let cmd = Command::cargo_bin("sub-batch")
+    Command::cargo_bin("sub-batch")
         .unwrap()
         .current_dir(&dir)
         .arg("-y")
         .arg("alass")
         .arg("--split-penalty 10")
-        .assert();
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("shifted block of 1"));
+}
 
-    if cmd.get_output().status.success() {
-        cmd.success()
-            .stdout(predicate::str::contains("shifted block of 1"));
-    } else {
-        // Ensure that we failed to because `alass` is not in PATH
-        cmd.failure().stderr(predicate::str::contains(
-            "could not find any of the following in PATH",
-        ));
-    }
+#[test]
+fn can_show_confirm_without_panicking() {
+    // run commands without the -y switch so the confirm is shown and make sure that
+    // we don't panic by checking that the program is still running after waiting a bit
+
+    let dir = tempdir().unwrap();
+    util::copy("./tests/dummy", &dir).unwrap();
+
+    let mut spawn = Command::cargo_bin("sub-batch")
+        .unwrap()
+        .current_dir(&dir)
+        .arg("alass")
+        .spawn()
+        .expect("should not panic");
+
+    thread::sleep(Duration::from_millis(100));
+    assert!(
+        spawn.try_wait().expect("wait error").is_none(),
+        "command panicked"
+    );
+    let _ = spawn.kill();
+
+    let dir = tempdir().unwrap();
+    util::copy("./tests/rename_invalid_utf8", &dir).unwrap();
+
+    let mut spawn = Command::cargo_bin("sub-batch")
+        .unwrap()
+        .current_dir(&dir)
+        .arg("rename")
+        .arg("--subarea")
+        .arg("\\d{2}\\.srt")
+        .spawn()
+        .expect("should not panic");
+
+    thread::sleep(Duration::from_millis(100));
+    assert!(
+        spawn.try_wait().expect("wait error").is_none(),
+        "command panicked"
+    );
+    let _ = spawn.kill();
 }
 
 fn timings(sub: &str) -> Vec<(String, String)> {

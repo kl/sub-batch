@@ -1,3 +1,9 @@
+Sun Oct 10 2023
+
+    Version 1.1.1
+
+    * Fix a regression in 1.1.0 that caused the alass subcommand to crash.
+
 Sun Oct 01 2023
 
     Version 1.1.0

@@ -9,17 +9,33 @@ use std::path::{Path, PathBuf};
 // these are the formats that subparse currently supports
 pub static SUBPARSE_SUPPORTED_SUBTITLE_FORMATS: &[&str] = &["ssa", "ass", "sub", "srt", "idx"];
 
-pub fn ask_user_ok(renames: &[MatchInfo]) -> AnyResult<bool> {
+pub fn ask_user_ok(renames: &[MatchInfo], highlight: bool) -> AnyResult<bool> {
     for rename in renames.iter() {
         let (sub_before, sub_match, sub_after) = rename.sub_match_parts();
+        let sub_ext = &rename.matched.sub_ext_part.to_string_lossy();
         let (vid_before, vid_match, vid_after) = rename.vid_match_parts();
+        let vid_ext = rename.matched.vid_ext_part.as_ref().map(|e| e.to_string_lossy());
 
         print!("{sub_before}");
-        print!("{}", sub_match.black().bold().on_yellow());
-        print!("{sub_after} -> ");
+        if highlight {
+            print!("{}", sub_match.black().bold().on_yellow());
+        } else {
+            print!("{}", sub_match);
+        }
+        print!("{sub_after}.{sub_ext} -> ");
+
         print!("{vid_before}");
-        print!("{}", vid_match.black().bold().on_yellow());
-        println!("{vid_after}");
+        if highlight {
+            print!("{}", vid_match.black().bold().on_yellow());
+        } else {
+            print!("{}", vid_match);
+        }
+        print!("{vid_after}");
+        if let Some(vid_ext) = vid_ext {
+            print!(".{vid_ext}");
+        }
+
+        println!();
     }
     println!("Ok? (Y/n)");
 

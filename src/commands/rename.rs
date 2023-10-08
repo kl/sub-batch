@@ -16,12 +16,18 @@ pub fn run(global_conf: &GlobalConfig, conf: RenameConfig) -> AnyResult<()> {
 
     util::validate_sub_and_file_matches_ignore_extensions(global_conf, &matches)?;
 
+    // Filter out subs that already have the same name as their video file
     let renames: Vec<MatchInfo> = matches
         .into_iter()
         .filter(|re| re.matched.sub_file_part != re.matched.vid_file_part)
         .collect();
 
-    if global_conf.no_confirm || util::ask_user_ok(&renames)? {
+    if renames.is_empty() {
+        println!("all subtitles are already renamed");
+        return Ok(());
+    }
+
+    if global_conf.no_confirm || util::ask_user_ok(&renames, true)? {
         for rename in renames.iter() {
             let new_name = rename
                 .matched

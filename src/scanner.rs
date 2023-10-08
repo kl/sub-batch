@@ -201,17 +201,24 @@ fn extract_same(subs: &mut Vec<&PathBuf>, others: &mut Vec<&PathBuf>) -> Vec<Mat
     subs.retain(|sub| {
         let (sub_file_part, _) = split_extension(sub).expect("sub file didn't have an extension");
 
-        if let Some((index, _)) = others.iter().enumerate().find(|(_, other)| {
-            // We may not have an extension, if not compare entire file path.
-            split_extension(other)
-                .map(|(other_file_part, _)| sub_file_part == other_file_part)
-                .unwrap_or_else(|| sub_file_part == **other)
-        }) {
+        if let Some((index, other_file_part)) = others
+            .iter()
+            .map(|other| {
+                // We may not have an extension, if not return the entire path
+                split_extension(other)
+                    .map(|(other_file_part, _)| other_file_part)
+                    .unwrap_or(other.file_stem().unwrap_or(OsStr::new("")))
+            })
+            .enumerate()
+            .find(|(_, other_file_part)| {
+                sub_file_part == *other_file_part
+            })
+        {
             let other = others.remove(index);
             same.push(MatchInfo {
                 matched: SubAndVid::new(sub, other),
-                sub_match_range: 0..sub.as_os_str().to_string_lossy().len(),
-                vid_match_range: 0..other.as_os_str().to_string_lossy().len(),
+                sub_match_range: 0..sub_file_part.to_string_lossy().len(),
+                vid_match_range: 0..other_file_part.to_string_lossy().len(),
             });
             false
         } else {
