@@ -14,7 +14,11 @@ pub fn ask_user_ok(renames: &[MatchInfo], highlight: bool) -> AnyResult<bool> {
         let (sub_before, sub_match, sub_after) = rename.sub_match_parts();
         let sub_ext = &rename.matched.sub_ext_part.to_string_lossy();
         let (vid_before, vid_match, vid_after) = rename.vid_match_parts();
-        let vid_ext = rename.matched.vid_ext_part.as_ref().map(|e| e.to_string_lossy());
+        let vid_ext = rename
+            .matched
+            .vid_ext_part
+            .as_ref()
+            .map(|e| e.to_string_lossy());
 
         print!("{sub_before}");
         if highlight {

@@ -1,5 +1,6 @@
 use anyhow::Result as AnyResult;
 use regex::Regex;
+use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::fmt::Debug;
 use std::fs::DirEntry;
@@ -56,8 +57,7 @@ impl SubAndVid {
         let sub_path = sub_path.into();
         let vid_path = vid_path.into();
 
-        let (sub_file_part, sub_ext_part) =
-            split_extension(&sub_path).expect("sub file didn't have an extension");
+        let (sub_file_part, sub_ext_part) = split_extension(&sub_path).unwrap();
 
         let (vid_file_part, vid_ext_part) = split_extension(&vid_path)
             .map(|(f, e)| (f, Some(e)))
@@ -67,7 +67,6 @@ impl SubAndVid {
         let sub_ext_part = sub_ext_part.to_owned();
 
         let vid_file_part = vid_file_part.to_owned().to_string_lossy().to_string();
-        let vid_ext_part = vid_ext_part.map(OsStr::to_owned);
 
         SubAndVid {
             sub_path,
@@ -148,14 +147,35 @@ fn match_files(options: &ScanOptions, files_with_numbers: &[PathBuf]) -> AnyResu
 
     // Find the areas inside the paths that match the area regular expressions.
     let sub_areas = find_areas(subs, &options.sub_area)?;
-    let mut other_areas = find_areas(others, &options.video_area)?;
+    let other_areas = find_areas(others, &options.video_area)?;
 
     // Match the subtitle and other paths where they have the same number in their areas.
-    let mut matched: Vec<MatchInfo> = sub_areas
+    let mut matched = match_areas(sub_areas, other_areas)?;
+
+    matched.extend(same);
+    Ok(matched)
+}
+
+fn match_areas(
+    sub_areas: Vec<PathAndArea>,
+    mut other_areas: Vec<PathAndArea>,
+) -> AnyResult<Vec<MatchInfo>> {
+    // Partition the subtitles so that subs with the same file stem (but different extensions)
+    // are in the same vec, e.g. sub1.srt, sub1.en.srt, sub1.jp.srt are put in the same vec.
+    let partition_map = sub_areas.into_iter().fold(HashMap::new(), |mut map, sub| {
+        let (stem, _) = split_extension(sub.path).unwrap();
+        map.entry(stem).or_insert(Vec::new()).push(sub);
+        map
+    });
+    let mut sub_partitions = partition_map.values().collect::<Vec<_>>();
+    sub_partitions.sort_unstable_by_key(|subs| subs[0].path);
+
+    let matched: Vec<MatchInfo> = sub_partitions
         .iter()
-        .filter_map(|sub| {
-            let num_range = NUMBER.find(&sub.area).map(|m| m.range())?;
-            let num = sub.area[num_range.clone()]
+        .filter_map(|subs| {
+            let first = &subs[0];
+            let num_range = NUMBER.find(&first.area).map(|m| m.range())?;
+            let num = first.area[num_range.clone()]
                 .parse::<u32>()
                 .unwrap()
                 .to_string(); // remove leading zeroes
@@ -166,22 +186,28 @@ fn match_files(options: &ScanOptions, files_with_numbers: &[PathBuf]) -> AnyResu
                 .find(|(_, other)| other.area.contains(&num))
                 .map(|(index, other)| (index, other, other.area.find(&num).unwrap()))?;
 
-            let matched = Some(MatchInfo {
-                matched: SubAndVid::new(sub.path, other.path),
+            // If the first sub in the set matched, all other subs in the set should also be matched
+            let matched = subs
+                .iter()
+                .map({
+                    |sub| MatchInfo {
+                        matched: SubAndVid::new(sub.path, other.path),
 
-                sub_match_range: (sub.area_start_index + num_range.start)
-                    ..(sub.area_start_index + num_range.end),
+                        sub_match_range: (sub.area_start_index + num_range.start)
+                            ..(sub.area_start_index + num_range.end),
 
-                vid_match_range: (other.area_start_index + position)
-                    ..(other.area_start_index + position + num.len()),
-            });
+                        vid_match_range: (other.area_start_index + position)
+                            ..(other.area_start_index + position + num.len()),
+                    }
+                })
+                .collect::<Vec<MatchInfo>>();
 
             other_areas.remove(other_index);
-            matched
+            Some(matched)
         })
+        .flatten()
         .collect();
 
-    matched.extend(same);
     Ok(matched)
 }
 
@@ -199,7 +225,7 @@ fn extract_same(subs: &mut Vec<&PathBuf>, others: &mut Vec<&PathBuf>) -> Vec<Mat
     let mut same = Vec::new();
 
     subs.retain(|sub| {
-        let (sub_file_part, _) = split_extension(sub).expect("sub file didn't have an extension");
+        let (sub_file_part, _) = split_extension(sub).unwrap();
 
         if let Some((index, other_file_part)) = others
             .iter()
@@ -210,9 +236,7 @@ fn extract_same(subs: &mut Vec<&PathBuf>, others: &mut Vec<&PathBuf>) -> Vec<Mat
                     .unwrap_or(other.file_stem().unwrap_or(OsStr::new("")))
             })
             .enumerate()
-            .find(|(_, other_file_part)| {
-                sub_file_part == *other_file_part
-            })
+            .find(|(_, other_file_part)| sub_file_part == *other_file_part)
         {
             let other = others.remove(index);
             same.push(MatchInfo {
@@ -228,8 +252,32 @@ fn extract_same(subs: &mut Vec<&PathBuf>, others: &mut Vec<&PathBuf>) -> Vec<Mat
     same
 }
 
-fn split_extension(path: &Path) -> Option<(&OsStr, &OsStr)> {
-    Some((path.file_stem()?, path.extension()?))
+fn split_extension(path: &Path) -> Option<(&OsStr, OsString)> {
+    let stem = path.file_stem()?;
+    let ext = path.extension()?;
+
+    let stem2 = Path::new(stem).file_stem()?;
+
+    if stem2 == stem {
+        // Single extension file (e.g. subtitle.srt)
+        Some((stem, ext.to_os_string()))
+    } else {
+        // Double extension file (e.g. subtitle.en.srt)
+        let ext2 = Path::new(stem).extension()?;
+
+        // If the secondary extension includes a number (e.g. subtitle.2.srt) we ignore it
+        // because it may contain the number part that matches the video file, and if it
+        // is more than 3 characters long we also ignore it (because mpv will not auto detect
+        // subtitle files when the secondary extension is longer than 3 characters).
+        if NUMBER.is_match(&ext2.to_string_lossy()) || ext2.to_string_lossy().chars().count() > 3 {
+            Some((stem, ext.to_os_string()))
+        } else {
+            let mut extensions = OsString::from(ext2);
+            extensions.push(".");
+            extensions.push(ext);
+            Some((stem2, extensions))
+        }
+    }
 }
 
 fn find_areas<'a>(

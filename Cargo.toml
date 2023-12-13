@@ -1,7 +1,7 @@
 [package]
 edition = "2021"
 name = "sub-batch"
-version = "1.1.1"
+version = "2.0.0-beta"
 authors = ["Kalle Lindström <kalind@posteo.se>"]
 description = "Match and rename subtitle files to video files and perfom other batch operations on subtitle files."
 homepage = "https://github.com/kl/sub-batch"
@@ -13,20 +13,20 @@ exclude = ["/tests"]
 license = "MIT"
 
 [dependencies]
-regex = "1"
-subparse = "0.7"
-clap = "2"
-lazy_static = "1"
-encoding_rs = "0.8"
-anyhow = "1"
-which = "4"
-rayon = "1"
-tempfile = "3"
-interprocess = "1"
-crossterm = "0.27"
-ctrlc = { version = "3", features = ["termination"] }
+regex = "1.10.2"
+subparse = "0.7.0"
+clap = "2.34.0"
+lazy_static = "1.4.0"
+encoding_rs = "0.8.33"
+anyhow = "1.0.75"
+which = "5.0.0"
+rayon = "1.8.0"
+tempfile = "3.8.1"
+interprocess = "1.2.1"
+crossterm = "0.27.0"
+ctrlc = { version = "3.4.1", features = ["termination"] }
 
 [dev-dependencies]
-assert_cmd = "2"
-predicates = "2"
-glob = "0.3"
+assert_cmd = "2.0.12"
+predicates = "2.1.5"
+glob = "0.3.1"

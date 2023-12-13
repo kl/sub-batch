@@ -69,6 +69,50 @@ fn can_rename_sub_file_that_contains_invalid_utf8() {
 }
 
 #[test]
+fn preserves_secondary_extension_when_renaming() {
+    let dir = tempdir().unwrap();
+    util::copy("./tests/rename_2_extensions", &dir).unwrap();
+
+    Command::cargo_bin("sub-batch")
+        .unwrap()
+        .current_dir(&dir)
+        .arg("-y")
+        .arg("rename")
+        .assert()
+        .success();
+
+    let files = util::files_in(&dir);
+    assert_eq!(files.len(), 6);
+    assert!(files.contains(&"fake_video13.mp4".to_string()));
+    assert!(files.contains(&"fake_video13.en.srt".to_string()));
+    assert!(files.contains(&"fake_video14.mp4".to_string()));
+    assert!(files.contains(&"fake_video14.srt".to_string()));
+    assert!(files.contains(&"fake_video15.mp4".to_string()));
+    assert!(files.contains(&"fake_video15.srt".to_string()));
+}
+
+#[test]
+fn can_rename_multiple_subs_to_match_a_single_video_file() {
+    let dir = tempdir().unwrap();
+    util::copy("./tests/rename_multiple", &dir).unwrap();
+
+    Command::cargo_bin("sub-batch")
+        .unwrap()
+        .current_dir(&dir)
+        .arg("-y")
+        .arg("rename")
+        .assert()
+        .success();
+
+    let files = util::files_in(&dir);
+    assert_eq!(files.len(), 4);
+    assert!(files.contains(&"vid1.mkv".to_string()));
+    assert!(files.contains(&"vid1.srt".to_string()));
+    assert!(files.contains(&"vid1.en.srt".to_string()));
+    assert!(files.contains(&"vid1.jp.srt".to_string()));
+}
+
+#[test]
 fn can_change_timings_of_sub_files() {
     let dir = tempdir().unwrap();
     util::copy("./tests/time_subs_only", &dir).unwrap();
