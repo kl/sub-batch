@@ -162,11 +162,12 @@ fn match_areas(
 ) -> AnyResult<Vec<MatchInfo>> {
     // Partition the subtitles so that subs with the same file stem (but different extensions)
     // are in the same vec, e.g. sub1.srt, sub1.en.srt, sub1.jp.srt are put in the same vec.
-    let partition_map = sub_areas.into_iter().fold(HashMap::new(), |mut map, sub| {
-        let (stem, _) = split_extension(sub.path).unwrap();
-        map.entry(stem).or_insert(Vec::new()).push(sub);
-        map
-    });
+    let partition_map: HashMap<&OsStr, Vec<PathAndArea>> =
+        sub_areas.into_iter().fold(HashMap::new(), |mut map, sub| {
+            let (stem, _) = split_extension(sub.path).unwrap();
+            map.entry(stem).or_default().push(sub);
+            map
+        });
     let mut sub_partitions = partition_map.values().collect::<Vec<_>>();
     sub_partitions.sort_unstable_by_key(|subs| subs[0].path);
 

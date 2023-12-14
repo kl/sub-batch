@@ -3,13 +3,62 @@ use crate::scanner::MatchInfo;
 use anyhow::Result as AnyResult;
 use core::result::Result::Ok;
 use crossterm::style::Stylize;
+use regex::{Match, Regex};
 use std::ffi::OsStr;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 // these are the formats that subparse currently supports
 pub static SUBPARSE_SUPPORTED_SUBTITLE_FORMATS: &[&str] = &["ssa", "ass", "sub", "srt", "idx"];
 
-pub fn ask_user_ok(renames: &[MatchInfo], highlight: bool) -> AnyResult<bool> {
+#[derive(Debug, PartialEq)]
+pub enum AskMatchAnswer {
+    Yes,
+    No,
+    EditSubtitleRegex,
+    EditVideoRegex,
+}
+
+pub fn ask_match_is_ok(
+    renames: &[MatchInfo],
+    sub_area: Option<&Regex>,
+    vid_area: Option<&Regex>,
+    highlight: bool,
+) -> AnyResult<AskMatchAnswer> {
+    fn print_highlights(
+        matcher: Option<Match>,
+        before: &str,
+        target: &str,
+        after: &str,
+        highlight: bool,
+    ) {
+        let (before_no_hl, before_hl, after_hl, after_no_hl) = if let Some(matcher) = matcher {
+            let start = matcher.range().start;
+            let end = matcher.range().end - (before.len() + target.len());
+            (
+                &before[0..start],
+                &before[start..],
+                &after[..end],
+                &after[end..],
+            )
+        } else {
+            // No area regex match means no extra highlights are needed
+            (before, "", "", after)
+        };
+
+        print!("{before_no_hl}");
+        if highlight {
+            print!("{}", before_hl.black().bold().on_grey());
+            print!("{}", target.black().bold().on_yellow());
+            print!("{}", after_hl.black().bold().on_grey());
+        } else {
+            print!("{}", before_hl);
+            print!("{}", target);
+            print!("{}", after_hl);
+        }
+        print!("{after_no_hl}");
+    }
+
     for rename in renames.iter() {
         let (sub_before, sub_match, sub_after) = rename.sub_match_parts();
         let sub_ext = &rename.matched.sub_ext_part.to_string_lossy();
@@ -20,33 +69,45 @@ pub fn ask_user_ok(renames: &[MatchInfo], highlight: bool) -> AnyResult<bool> {
             .as_ref()
             .map(|e| e.to_string_lossy());
 
-        print!("{sub_before}");
-        if highlight {
-            print!("{}", sub_match.black().bold().on_yellow());
-        } else {
-            print!("{}", sub_match);
-        }
-        print!("{sub_after}.{sub_ext} -> ");
+        let sub_area_match = sub_area.and_then(|r| r.find(&rename.matched.sub_file_part));
+        let vid_area_match = vid_area.and_then(|r| r.find(&rename.matched.vid_file_part));
 
-        print!("{vid_before}");
-        if highlight {
-            print!("{}", vid_match.black().bold().on_yellow());
-        } else {
-            print!("{}", vid_match);
-        }
-        print!("{vid_after}");
+        print_highlights(sub_area_match, sub_before, sub_match, sub_after, highlight);
+        print!(".{sub_ext} -> ");
+        print_highlights(vid_area_match, vid_before, vid_match, vid_after, highlight);
         if let Some(vid_ext) = vid_ext {
             print!(".{vid_ext}");
         }
-
         println!();
     }
-    println!("Ok? (Y/n)");
+
+    println!(
+        "\n[s = edit subtitle regex (current: {}), v = edit video regex (current: {})]",
+        sub_area
+            .map(|r| r.to_string())
+            .unwrap_or("None".to_string()),
+        vid_area
+            .map(|r| r.to_string())
+            .unwrap_or("None".to_string()),
+    );
+    print!("Ok? (Y/n): ");
+    io::stdout().flush()?;
 
     let mut input = String::new();
-    std::io::stdin().read_line(&mut input)?;
+    io::stdin().read_line(&mut input)?;
+    input = input.to_lowercase();
 
-    Ok(input.split_whitespace().next().is_none() || input.to_lowercase().starts_with('y'))
+    Ok(
+        if input.split_whitespace().next().is_none() || input.starts_with('y') {
+            AskMatchAnswer::Yes
+        } else if input.starts_with('s') {
+            AskMatchAnswer::EditSubtitleRegex
+        } else if input.starts_with('v') {
+            AskMatchAnswer::EditVideoRegex
+        } else {
+            AskMatchAnswer::No
+        },
+    )
 }
 
 pub fn validate_sub_matches(global_conf: &GlobalConfig, matches: &[PathBuf]) -> AnyResult<()> {
@@ -98,4 +159,17 @@ fn has_subparse_supported_subtitle_formats(matches: &[impl AsRef<Path>]) -> bool
             .map(|ext| SUBPARSE_SUPPORTED_SUBTITLE_FORMATS.contains(&ext))
             == Some(true)
     })
+}
+
+pub fn get_user_regex(prompt: &str) -> AnyResult<Regex> {
+    print!("{prompt}");
+    std::io::stdout().flush()?;
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input)?;
+    input.pop();
+    if let Ok(regex) = Regex::new(&input) {
+        Ok(regex)
+    } else {
+        get_user_regex("invalid regex, try again: ")
+    }
 }

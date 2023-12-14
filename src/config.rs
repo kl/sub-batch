@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 /// Common options that apply for more than one command.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GlobalConfig {
     pub path: PathBuf,
     pub no_confirm: bool,
@@ -26,7 +26,7 @@ pub enum CommandConfig {
     Mpv,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RenameConfig {
     pub video_area: Option<Regex>,
     pub sub_area: Option<Regex>,
@@ -39,7 +39,7 @@ pub struct TimeConfig {
     pub fps: f64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AlassConfig {
     pub flags: Vec<String>,
     pub video_area: Option<Regex>,
