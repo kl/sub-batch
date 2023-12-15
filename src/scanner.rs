@@ -5,7 +5,6 @@ use std::ffi::{OsStr, OsString};
 use std::fmt::Debug;
 use std::fs::DirEntry;
 use std::io;
-use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 lazy_static! {
@@ -31,24 +30,43 @@ pub struct SubAndVid {
 #[derive(Debug)]
 pub struct MatchInfo {
     pub matched: SubAndVid,
-    // These ranges are indices in to the sub and file file path strings
-    sub_match_range: Range<usize>,
-    vid_match_range: Range<usize>,
+    match_type: MatchType,
+}
+
+#[derive(Debug, PartialEq)]
+enum MatchType {
+    // If the sub file (minus extension) is identical to the video file (minus extension)
+    Identical,
+    // These ranges are indices in to the sub and file file path strings in the SubAndVid struct
+    Range {
+        sub_match: std::ops::Range<usize>,
+        vid_match: std::ops::Range<usize>,
+    },
 }
 
 impl MatchInfo {
     pub fn sub_match_parts(&self) -> (&str, &str, &str) {
-        let before = &self.matched.sub_file_part[0..self.sub_match_range.start];
-        let matched = &self.matched.sub_file_part[self.sub_match_range.clone()];
-        let after = &self.matched.sub_file_part[self.sub_match_range.end..];
-        (before, matched, after)
+        match &self.match_type {
+            MatchType::Identical => (&self.matched.sub_file_part, "", ""),
+            MatchType::Range { sub_match, .. } => {
+                let before = &self.matched.sub_file_part[0..sub_match.start];
+                let matched = &self.matched.sub_file_part[sub_match.clone()];
+                let after = &self.matched.sub_file_part[sub_match.end..];
+                (before, matched, after)
+            }
+        }
     }
 
     pub fn vid_match_parts(&self) -> (&str, &str, &str) {
-        let before = &self.matched.vid_file_part[0..self.vid_match_range.start];
-        let matched = &self.matched.vid_file_part[self.vid_match_range.clone()];
-        let after = &self.matched.vid_file_part[self.vid_match_range.end..];
-        (before, matched, after)
+        match &self.match_type {
+            MatchType::Identical => (&self.matched.vid_file_part, "", ""),
+            MatchType::Range { vid_match, .. } => {
+                let before = &self.matched.vid_file_part[0..vid_match.start];
+                let matched = &self.matched.vid_file_part[vid_match.clone()];
+                let after = &self.matched.vid_file_part[vid_match.end..];
+                (before, matched, after)
+            }
+        }
     }
 }
 
@@ -132,33 +150,26 @@ fn match_files(options: &ScanOptions, files_with_numbers: &[PathBuf]) -> AnyResu
         });
 
     // Remove files that don't match the filters.
-    let mut subs = subs
+    let subs = subs
         .into_iter()
         .filter(|sub| regex_matches_file_name(options.sub_filter, sub))
         .collect();
-    let mut others = others
+    let others = others
         .into_iter()
         .filter(|other| regex_matches_file_name(options.video_filter, other))
         .collect();
-
-    // Find subs that already match their video files and return and remove them from subs
-    // and others.
-    let same = extract_same(&mut subs, &mut others);
 
     // Find the areas inside the paths that match the area regular expressions.
     let sub_areas = find_areas(subs, &options.sub_area)?;
     let other_areas = find_areas(others, &options.video_area)?;
 
     // Match the subtitle and other paths where they have the same number in their areas.
-    let mut matched = match_areas(sub_areas, other_areas)?;
-
-    matched.extend(same);
-    Ok(matched)
+    match_areas(sub_areas, other_areas)
 }
 
 fn match_areas(
     sub_areas: Vec<PathAndArea>,
-    mut other_areas: Vec<PathAndArea>,
+    other_areas: Vec<PathAndArea>,
 ) -> AnyResult<Vec<MatchInfo>> {
     // Partition the subtitles so that subs with the same file stem (but different extensions)
     // are in the same vec, e.g. sub1.srt, sub1.en.srt, sub1.jp.srt are put in the same vec.
@@ -168,13 +179,46 @@ fn match_areas(
             map.entry(stem).or_default().push(sub);
             map
         });
-    let mut sub_partitions = partition_map.values().collect::<Vec<_>>();
-    sub_partitions.sort_unstable_by_key(|subs| subs[0].path);
+    let mut sub_partitions = partition_map.iter().collect::<Vec<_>>();
+    sub_partitions.sort_unstable_by_key(|subs| subs.0);
 
-    let matched: Vec<MatchInfo> = sub_partitions
+    let mut other_map: HashMap<&OsStr, PathAndArea> =
+        other_areas
+            .into_iter()
+            .fold(HashMap::new(), |mut map, other| {
+                let stem =
+                // We may not have an extension, if not return the entire path
+                split_extension(other.path)
+                    .map(|(other_file_part, _)| other_file_part)
+                    .unwrap_or(other.path.file_stem().unwrap_or(OsStr::new("")));
+                map.insert(stem, other);
+                map
+            });
+
+    let mut already_matched: Vec<MatchInfo> = Vec::new();
+    sub_partitions.retain(|(stem, subs)| {
+        if let Some(other) = other_map.remove(*stem) {
+            for sub in subs.iter() {
+                already_matched.push(MatchInfo {
+                    matched: SubAndVid::new(sub.path, other.path),
+                    match_type: MatchType::Identical,
+                })
+            }
+            false
+        } else {
+            true
+        }
+    });
+
+    // Put others back into a Vec and sort to make sure we have a deterministic order
+    let mut other_areas = other_map.into_values().collect::<Vec<_>>();
+    other_areas.sort_unstable_by_key(|other| other.path);
+
+    let mut matched: Vec<MatchInfo> = sub_partitions
         .iter()
-        .filter_map(|subs| {
+        .filter_map(|(_, subs)| {
             let first = &subs[0];
+
             let num_range = NUMBER.find(&first.area).map(|m| m.range())?;
             let num = first.area[num_range.clone()]
                 .parse::<u32>()
@@ -193,12 +237,13 @@ fn match_areas(
                 .map({
                     |sub| MatchInfo {
                         matched: SubAndVid::new(sub.path, other.path),
+                        match_type: MatchType::Range {
+                            sub_match: (sub.area_start_index + num_range.start)
+                                ..(sub.area_start_index + num_range.end),
 
-                        sub_match_range: (sub.area_start_index + num_range.start)
-                            ..(sub.area_start_index + num_range.end),
-
-                        vid_match_range: (other.area_start_index + position)
-                            ..(other.area_start_index + position + num.len()),
+                            vid_match: (other.area_start_index + position)
+                                ..(other.area_start_index + position + num.len()),
+                        },
                     }
                 })
                 .collect::<Vec<MatchInfo>>();
@@ -209,6 +254,7 @@ fn match_areas(
         .flatten()
         .collect();
 
+    matched.extend(already_matched);
     Ok(matched)
 }
 
@@ -220,37 +266,6 @@ fn regex_matches_file_name(regex: Option<&Regex>, path: &Path) -> bool {
         },
         None => true,
     }
-}
-
-fn extract_same(subs: &mut Vec<&PathBuf>, others: &mut Vec<&PathBuf>) -> Vec<MatchInfo> {
-    let mut same = Vec::new();
-
-    subs.retain(|sub| {
-        let (sub_file_part, _) = split_extension(sub).unwrap();
-
-        if let Some((index, other_file_part)) = others
-            .iter()
-            .map(|other| {
-                // We may not have an extension, if not return the entire path
-                split_extension(other)
-                    .map(|(other_file_part, _)| other_file_part)
-                    .unwrap_or(other.file_stem().unwrap_or(OsStr::new("")))
-            })
-            .enumerate()
-            .find(|(_, other_file_part)| sub_file_part == *other_file_part)
-        {
-            let other = others.remove(index);
-            same.push(MatchInfo {
-                matched: SubAndVid::new(sub, other),
-                sub_match_range: 0..sub_file_part.to_string_lossy().len(),
-                vid_match_range: 0..other_file_part.to_string_lossy().len(),
-            });
-            false
-        } else {
-            true
-        }
-    });
-    same
 }
 
 fn split_extension(path: &Path) -> Option<(&OsStr, OsString)> {
