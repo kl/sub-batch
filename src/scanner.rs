@@ -1,5 +1,6 @@
+use crate::config::GlobalConfig;
 use anyhow::Result as AnyResult;
-use regex::Regex;
+use regex::{Match, Regex};
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::fmt::Debug;
@@ -97,12 +98,41 @@ impl SubAndVid {
     }
 }
 
+#[derive(Debug)]
 pub struct ScanOptions<'a> {
     pub path: &'a Path,
     pub sub_area: Option<&'a Regex>,
     pub video_area: Option<&'a Regex>,
     pub sub_filter: Option<&'a Regex>,
     pub video_filter: Option<&'a Regex>,
+    pub sub_area_scan: AreaScan,
+    pub video_area_scan: AreaScan,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum AreaScan {
+    Normal,
+    Reverse,
+}
+
+impl<'a> ScanOptions<'a> {
+    pub fn from_global_conf(
+        conf: &'a GlobalConfig,
+        sub_area: Option<&'a Regex>,
+        sub_area_scan: AreaScan,
+        video_area: Option<&'a Regex>,
+        video_area_scan: AreaScan,
+    ) -> Self {
+        ScanOptions {
+            path: &conf.path,
+            sub_area,
+            video_area,
+            sub_filter: conf.sub_filter.as_ref(),
+            sub_area_scan,
+            video_filter: conf.video_filter.as_ref(),
+            video_area_scan,
+        }
+    }
 }
 
 pub fn scan(options: ScanOptions) -> AnyResult<Vec<MatchInfo>> {
@@ -164,12 +194,13 @@ fn match_files(options: &ScanOptions, files_with_numbers: &[PathBuf]) -> AnyResu
     let other_areas = find_areas(others, &options.video_area)?;
 
     // Match the subtitle and other paths where they have the same number in their areas.
-    match_areas(sub_areas, other_areas)
+    match_areas(sub_areas, other_areas, options)
 }
 
 fn match_areas(
     sub_areas: Vec<PathAndArea>,
     other_areas: Vec<PathAndArea>,
+    options: &ScanOptions,
 ) -> AnyResult<Vec<MatchInfo>> {
     // Partition the subtitles so that subs with the same file stem (but different extensions)
     // are in the same vec, e.g. sub1.srt, sub1.en.srt, sub1.jp.srt are put in the same vec.
@@ -219,7 +250,8 @@ fn match_areas(
         .filter_map(|(_, subs)| {
             let first = &subs[0];
 
-            let num_range = NUMBER.find(&first.area).map(|m| m.range())?;
+            let num_range =
+                find_sub_number_in_area(&first.area, options.sub_area_scan).map(|m| m.range())?;
             let num = first.area[num_range.clone()]
                 .parse::<u32>()
                 .unwrap()
@@ -229,7 +261,14 @@ fn match_areas(
                 .iter()
                 .enumerate()
                 .find(|(_, other)| other.area.contains(&num))
-                .map(|(index, other)| (index, other, other.area.find(&num).unwrap()))?;
+                .map(|(index, other)| {
+                    (
+                        index,
+                        other,
+                        find_specific_number_in_area(&other.area, &num, options.video_area_scan)
+                            .unwrap(),
+                    )
+                })?;
 
             // If the first sub in the set matched, all other subs in the set should also be matched
             let matched = subs
@@ -256,6 +295,21 @@ fn match_areas(
 
     matched.extend(already_matched);
     Ok(matched)
+}
+
+fn find_sub_number_in_area(area: &str, area_scan: AreaScan) -> Option<Match> {
+    let mut matches = NUMBER.find_iter(area);
+    match area_scan {
+        AreaScan::Normal => matches.next(),
+        AreaScan::Reverse => matches.last(),
+    }
+}
+
+fn find_specific_number_in_area(area: &str, number: &str, area_scan: AreaScan) -> Option<usize> {
+    match area_scan {
+        AreaScan::Normal => area.find(number),
+        AreaScan::Reverse => area.rfind(number),
+    }
 }
 
 fn regex_matches_file_name(regex: Option<&Regex>, path: &Path) -> bool {

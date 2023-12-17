@@ -1,7 +1,7 @@
 use crate::commands::util;
 use crate::config::{GlobalConfig, TimeConfig};
 use crate::scanner;
-use crate::scanner::{MatchInfo, ScanOptions};
+use crate::scanner::{AreaScan, MatchInfo, ScanOptions};
 use crate::time;
 use anyhow::Context;
 use anyhow::Result as AnyResult;
@@ -56,13 +56,13 @@ impl MpvCommand {
     }
 
     fn first_sub_video_match(&self) -> AnyResult<MatchInfo> {
-        let mut matches = scanner::scan(ScanOptions {
-            path: &self.global_conf.path,
-            sub_filter: self.global_conf.sub_filter.as_ref(),
-            video_filter: self.global_conf.video_filter.as_ref(),
-            sub_area: None,
-            video_area: None,
-        })?;
+        let mut matches = scanner::scan(ScanOptions::from_global_conf(
+            &self.global_conf,
+            None,
+            AreaScan::Normal,
+            None,
+            AreaScan::Normal,
+        ))?;
         util::validate_sub_and_file_matches(&self.global_conf, &matches)?;
         Ok(matches.swap_remove(0))
     }

@@ -113,6 +113,35 @@ fn can_rename_multiple_subs_to_match_a_single_video_file() {
 }
 
 #[test]
+fn can_rename_subs_with_reverse_number_scan() {
+    let dir = tempdir().unwrap();
+    util::copy("./tests/rename_reverse", &dir).unwrap();
+
+    // Normal rename should fail to match
+    Command::cargo_bin("sub-batch")
+        .unwrap()
+        .current_dir(&dir)
+        .arg("-y")
+        .arg("rename")
+        .assert()
+        .failure();
+
+    Command::cargo_bin("sub-batch")
+        .unwrap()
+        .current_dir(&dir)
+        .arg("-y")
+        .arg("rename")
+        .arg("--rev")
+        .assert()
+        .success();
+
+    let files = util::files_in(&dir);
+    assert_eq!(files.len(), 2);
+    assert!(files.contains(&"01sample-1337video.mp4".to_string()));
+    assert!(files.contains(&"01sample-1337video.srt".to_string()));
+}
+
+#[test]
 fn can_change_timings_of_sub_files() {
     let dir = tempdir().unwrap();
     util::copy("./tests/time_subs_only", &dir).unwrap();

@@ -21,13 +21,13 @@ impl AlassCommand {
     }
 
     pub fn run(&self) -> AnyResult<()> {
-        let matches = scanner::scan(ScanOptions {
-            path: &self.global_conf.path,
-            sub_area: self.conf.sub_area.as_ref(),
-            video_area: self.conf.video_area.as_ref(),
-            sub_filter: self.global_conf.sub_filter.as_ref(),
-            video_filter: self.global_conf.video_filter.as_ref(),
-        })?;
+        let matches = scanner::scan(ScanOptions::from_global_conf(
+            &self.global_conf,
+            self.conf.sub_area.as_ref(),
+            self.conf.sub_area_scan,
+            self.conf.video_area.as_ref(),
+            self.conf.video_area_scan,
+        ))?;
 
         util::validate_sub_and_file_matches(&self.global_conf, &matches)?;
 

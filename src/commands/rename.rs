@@ -7,13 +7,13 @@ use anyhow::Result as AnyResult;
 use std::fs;
 
 pub fn run(global_conf: &GlobalConfig, mut conf: RenameConfig) -> AnyResult<()> {
-    let matches = scanner::scan(ScanOptions {
-        path: &global_conf.path,
-        sub_area: conf.sub_area.as_ref(),
-        video_area: conf.video_area.as_ref(),
-        sub_filter: global_conf.sub_filter.as_ref(),
-        video_filter: global_conf.video_filter.as_ref(),
-    })?;
+    let matches = scanner::scan(ScanOptions::from_global_conf(
+        global_conf,
+        conf.sub_area.as_ref(),
+        conf.sub_area_scan,
+        conf.video_area.as_ref(),
+        conf.video_area_scan,
+    ))?;
 
     util::validate_sub_and_file_matches_ignore_extensions(global_conf, &matches)?;
 

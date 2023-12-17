@@ -1,3 +1,4 @@
+use crate::scanner::AreaScan;
 use anyhow::Result as AnyResult;
 use clap::ArgMatches;
 use clap::{App, SubCommand};
@@ -28,8 +29,10 @@ pub enum CommandConfig {
 
 #[derive(Debug, Clone)]
 pub struct RenameConfig {
-    pub video_area: Option<Regex>,
     pub sub_area: Option<Regex>,
+    pub sub_area_scan: AreaScan,
+    pub video_area: Option<Regex>,
+    pub video_area_scan: AreaScan,
 }
 
 #[derive(Debug)]
@@ -42,8 +45,10 @@ pub struct TimeConfig {
 #[derive(Debug, Clone)]
 pub struct AlassConfig {
     pub flags: Vec<String>,
-    pub video_area: Option<Regex>,
     pub sub_area: Option<Regex>,
+    pub sub_area_scan: AreaScan,
+    pub video_area: Option<Regex>,
+    pub video_area_scan: AreaScan,
     pub no_parallel: bool,
 }
 
@@ -101,28 +106,7 @@ impl GlobalConfig {
             .subcommand(
                 SubCommand::with_name("rename")
                     .about("Renames subtitle files to match the corresponding video file.")
-                    .arg(
-                        Arg::with_name("video_area")
-                            .long("videoarea")
-                            .short("va")
-                            .takes_value(true)
-                            .allow_hyphen_values(true)
-                            .help(
-                                "Specifies a regular expression that defines the part of the video \
-                                filename where the episode number should be extracted from.",
-                            ),
-                    )
-                    .arg(
-                        Arg::with_name("sub_area")
-                            .long("subarea")
-                            .short("sa")
-                            .takes_value(true)
-                            .allow_hyphen_values(true)
-                            .help(
-                                "Specifies a regular expression that defines the part of the \
-                                subtitle filename where the episode number should be extracted from.",
-                            ),
-                    )
+                    .common_match_args()
             )
             .subcommand(
                 SubCommand::with_name("time")
@@ -170,6 +154,7 @@ impl GlobalConfig {
                         `alass` (https://github.com/kaegi/alass). This can automatically fix \
                         wrong timings due to commercial breaks for example."
                     )
+                    .common_match_args()
                     .arg(
                         Arg::with_name("flags")
                             .takes_value(true)
@@ -178,28 +163,6 @@ impl GlobalConfig {
                                 subtitle/video adjustment. The arguments must be quoted so that \
                                 they are interpreted as a single string, for example: \
                                 \n\n  sub-batch alass \"--split-penalty 10\"",
-                            ),
-                    )
-                    .arg(
-                        Arg::with_name("video_area")
-                            .long("videoarea")
-                            .short("va")
-                            .takes_value(true)
-                            .allow_hyphen_values(true)
-                            .help(
-                                "Specifies a regular expression that defines the part of the video \
-                                filename where episode number should be extracted from.",
-                            ),
-                    )
-                    .arg(
-                        Arg::with_name("sub_area")
-                            .long("subarea")
-                            .short("sa")
-                            .takes_value(true)
-                            .allow_hyphen_values(true)
-                            .help(
-                                "Specifies a regular expression that defines the part of the \
-                                subtitle filename where episode number should be extracted from.",
                             ),
                     )
                     .arg(
@@ -215,10 +178,28 @@ impl GlobalConfig {
 
         let (subcommand_name, subcommand_matches) = check_args(&matches);
 
+        let sub_area_scan = if subcommand_matches.is_present("reverse")
+            || subcommand_matches.is_present("reverse_sub")
+        {
+            AreaScan::Reverse
+        } else {
+            AreaScan::Normal
+        };
+
+        let video_area_scan = if subcommand_matches.is_present("reverse")
+            || subcommand_matches.is_present("reverse_video")
+        {
+            AreaScan::Reverse
+        } else {
+            AreaScan::Normal
+        };
+
         let command_config = match subcommand_name {
             "rename" => CommandConfig::Rename(RenameConfig {
-                video_area: regex_arg(subcommand_matches, "video_area")?,
                 sub_area: regex_arg(subcommand_matches, "sub_area")?,
+                sub_area_scan,
+                video_area: regex_arg(subcommand_matches, "video_area")?,
+                video_area_scan,
             }),
             "time" => {
                 let mut tc = TimeConfig::timing(timing(subcommand_matches)?);
@@ -232,8 +213,10 @@ impl GlobalConfig {
             }
             "alass" => CommandConfig::Alass(AlassConfig {
                 flags: alass_flags(subcommand_matches),
-                video_area: regex_arg(subcommand_matches, "video_area")?,
                 sub_area: regex_arg(subcommand_matches, "sub_area")?,
+                sub_area_scan,
+                video_area: regex_arg(subcommand_matches, "video_area")?,
+                video_area_scan,
                 no_parallel: subcommand_matches.is_present("no_parallel"),
             }),
             "time-mpv" => CommandConfig::Mpv,
@@ -249,6 +232,55 @@ impl GlobalConfig {
             },
             command_config,
         ))
+    }
+}
+
+trait CommonMatchArgs {
+    fn common_match_args(self) -> Self;
+}
+
+impl<'a, 'b> CommonMatchArgs for App<'a, 'b> {
+    fn common_match_args(self) -> Self {
+        self.arg(
+            Arg::with_name("video_area")
+                .long("videoarea")
+                .short("v")
+                .takes_value(true)
+                .allow_hyphen_values(true)
+                .help(
+                    "Specifies a regular expression that defines the part of the video \
+                    filename where episode number should be extracted from.",
+                ),
+        )
+        .arg(
+            Arg::with_name("sub_area")
+                .long("subarea")
+                .short("s")
+                .takes_value(true)
+                .allow_hyphen_values(true)
+                .help(
+                    "Specifies a regular expression that defines the part of the \
+                    subtitle filename where episode number should be extracted from.",
+                ),
+        )
+        .arg(
+            Arg::with_name("reverse")
+                .long("rev")
+                .takes_value(false)
+                .help("Looks for the sub and video numbers starting from the end of the area."),
+        )
+        .arg(
+            Arg::with_name("reverse_sub")
+                .long("rs")
+                .takes_value(false)
+                .help("Looks for the sub numbers starting from the end of the area."),
+        )
+        .arg(
+            Arg::with_name("reverse_video")
+                .long("rv")
+                .takes_value(false)
+                .help("Looks for the video numbers starting from the end of the area."),
+        )
     }
 }
 

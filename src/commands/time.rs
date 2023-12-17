@@ -1,20 +1,19 @@
 use crate::commands::util;
 use crate::config::{GlobalConfig, TimeConfig};
-use crate::scanner::{self, ScanOptions};
+use crate::scanner::{self, AreaScan, ScanOptions};
 use anyhow::Result as AnyResult;
 use std::fs;
 use subparse::timetypes::TimeDelta;
 use subparse::SubtitleFile;
 
 pub fn run(global_conf: &GlobalConfig, conf: TimeConfig) -> AnyResult<()> {
-    let matches = scanner::scan_subs_only(ScanOptions {
-        path: &global_conf.path,
-        sub_filter: global_conf.sub_filter.as_ref(),
-        video_filter: global_conf.video_filter.as_ref(),
-        sub_area: None,
-        video_area: None,
-    })?;
-
+    let matches = scanner::scan_subs_only(ScanOptions::from_global_conf(
+        global_conf,
+        None,
+        AreaScan::Normal,
+        None,
+        AreaScan::Normal,
+    ))?;
     util::validate_sub_matches(global_conf, &matches)?;
 
     let mut parsed_subs: Vec<SubtitleFile> = matches
