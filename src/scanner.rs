@@ -9,7 +9,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 lazy_static! {
-    static ref NUMBER: Regex = Regex::new(r"\d+").unwrap();
+    // Leading zeroes are ignored.
+    static ref NUMBER: Regex = Regex::new(r"[1-9]+\d*").unwrap();
 }
 
 static EXTENSIONS: &[&str] = &[
@@ -202,18 +203,8 @@ fn match_areas(
     other_areas: Vec<PathAndArea>,
     options: &ScanOptions,
 ) -> AnyResult<Vec<MatchInfo>> {
-    // Partition the subtitles so that subs with the same file stem (but different extensions)
-    // are in the same vec, e.g. sub1.srt, sub1.en.srt, sub1.jp.srt are put in the same vec.
-    let partition_map: HashMap<&OsStr, Vec<PathAndArea>> =
-        sub_areas.into_iter().fold(HashMap::new(), |mut map, sub| {
-            let (stem, _) = split_extension(sub.path).unwrap();
-            map.entry(stem).or_default().push(sub);
-            map
-        });
-    let mut sub_partitions = partition_map.iter().collect::<Vec<_>>();
-    sub_partitions.sort_unstable_by_key(|subs| subs.0);
-
-    let mut other_map: HashMap<&OsStr, PathAndArea> =
+    let mut sub_partitions = partition_sub_areas(sub_areas);
+    let mut other_partition_map: HashMap<&OsStr, PathAndArea> =
         other_areas
             .into_iter()
             .fold(HashMap::new(), |mut map, other| {
@@ -228,7 +219,9 @@ fn match_areas(
 
     let mut already_matched: Vec<MatchInfo> = Vec::new();
     sub_partitions.retain(|(stem, subs)| {
-        if let Some(other) = other_map.remove(*stem) {
+        // Can we match a sub stem to a video stem perfectly? If so they are already matched
+        // so remove the subs.
+        if let Some(other) = other_partition_map.remove(*stem) {
             for sub in subs.iter() {
                 already_matched.push(MatchInfo {
                     matched: SubAndVid::new(sub.path, other.path),
@@ -242,9 +235,10 @@ fn match_areas(
     });
 
     // Put others back into a Vec and sort to make sure we have a deterministic order
-    let mut other_areas = other_map.into_values().collect::<Vec<_>>();
+    let mut other_areas = other_partition_map.into_values().collect::<Vec<_>>();
     other_areas.sort_unstable_by_key(|other| other.path);
 
+    // Match subs and video files based on the numbers in their respective embedded areas.
     let mut matched: Vec<MatchInfo> = sub_partitions
         .iter()
         .filter_map(|(_, subs)| {
@@ -252,10 +246,7 @@ fn match_areas(
 
             let num_range =
                 find_sub_number_in_area(&first.area, options.sub_area_scan).map(|m| m.range())?;
-            let num = first.area[num_range.clone()]
-                .parse::<u32>()
-                .unwrap()
-                .to_string(); // remove leading zeroes
+            let num = &first.area[num_range.clone()];
 
             let (other_index, other, position) = other_areas
                 .iter()
@@ -295,6 +286,21 @@ fn match_areas(
 
     matched.extend(already_matched);
     Ok(matched)
+}
+
+// Partition the subtitles so that subs with the same file stem (but different extensions)
+// are in the same vec, e.g. sub1.srt, sub1.en.srt, sub1.jp.srt are put in the same vec.
+// First element of the returned tuple is the common file stem.
+fn partition_sub_areas(areas: Vec<PathAndArea>) -> Vec<(&OsStr, Vec<PathAndArea>)> {
+    let partition_map: HashMap<&OsStr, Vec<PathAndArea>> =
+        areas.into_iter().fold(HashMap::new(), |mut map, sub| {
+            let (stem, _) = split_extension(sub.path).unwrap();
+            map.entry(stem).or_default().push(sub);
+            map
+        });
+    let mut partitions = partition_map.into_iter().collect::<Vec<_>>();
+    partitions.sort_unstable_by_key(|subs| subs.0);
+    partitions
 }
 
 fn find_sub_number_in_area(area: &str, area_scan: AreaScan) -> Option<Match> {
