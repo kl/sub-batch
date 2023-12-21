@@ -2,7 +2,7 @@ use crate::commands::util;
 use crate::commands::util::AskMatchAnswer;
 use crate::config::{GlobalConfig, RenameConfig};
 use crate::scanner;
-use crate::scanner::{MatchInfo, ScanOptions};
+use crate::scanner::{MatchInfo, MatchInfoType, ScanOptions};
 use anyhow::Result as AnyResult;
 use std::fs;
 
@@ -13,14 +13,15 @@ pub fn run(global_conf: &GlobalConfig, mut conf: RenameConfig) -> AnyResult<()> 
         conf.sub_area_scan,
         conf.video_area.as_ref(),
         conf.video_area_scan,
+        conf.secondary_ext_policy,
     ))?;
 
     util::validate_sub_and_file_matches_ignore_extensions(global_conf, &matches)?;
 
-    // Filter out subs that already have the same name as their video file
+    // Remove subs that already have the same name as their video file
     let renames: Vec<MatchInfo> = matches
         .into_iter()
-        .filter(|re| re.matched.sub_file_part != re.matched.vid_file_part)
+        .filter(|match_info| match_info.match_type != MatchInfoType::Identical)
         .collect();
 
     if renames.is_empty() {
@@ -28,7 +29,7 @@ pub fn run(global_conf: &GlobalConfig, mut conf: RenameConfig) -> AnyResult<()> 
         return Ok(());
     }
 
-    if global_conf.no_confirm {
+    if !global_conf.confirm {
         rename_subtitles(&renames)?;
         return Ok(());
     }
@@ -37,7 +38,7 @@ pub fn run(global_conf: &GlobalConfig, mut conf: RenameConfig) -> AnyResult<()> 
         &renames,
         conf.sub_area.as_ref(),
         conf.video_area.as_ref(),
-        true,
+        global_conf.color,
     )? {
         AskMatchAnswer::Yes => rename_subtitles(&renames)?,
         AskMatchAnswer::EditSubtitleRegex => loop {
@@ -63,11 +64,8 @@ pub fn run(global_conf: &GlobalConfig, mut conf: RenameConfig) -> AnyResult<()> 
 
 fn rename_subtitles(renames: &[MatchInfo]) -> AnyResult<()> {
     for rename in renames.iter() {
-        let new_name = rename
-            .matched
-            .vid_path
-            .with_extension(&rename.matched.sub_ext_part);
-        fs::rename(&rename.matched.sub_path, new_name)?;
+        let new_name = rename.video_path.with_extension(&rename.sub_file_ext);
+        fs::rename(&rename.sub_path, new_name)?;
     }
     Ok(())
 }

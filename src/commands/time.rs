@@ -1,6 +1,6 @@
 use crate::commands::util;
 use crate::config::{GlobalConfig, TimeConfig};
-use crate::scanner::{self, AreaScan, ScanOptions};
+use crate::scanner::{self, AreaScan, ScanOptions, SecondaryExtensionPolicy};
 use anyhow::Result as AnyResult;
 use std::fs;
 use subparse::timetypes::TimeDelta;
@@ -13,6 +13,7 @@ pub fn run(global_conf: &GlobalConfig, conf: TimeConfig) -> AnyResult<()> {
         AreaScan::Normal,
         None,
         AreaScan::Normal,
+        SecondaryExtensionPolicy::Never,
     ))?;
     util::validate_sub_matches(global_conf, &matches)?;
 

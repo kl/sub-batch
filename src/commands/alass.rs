@@ -2,7 +2,7 @@ use crate::commands::util;
 use crate::commands::util::AskMatchAnswer;
 use crate::config::{AlassConfig, GlobalConfig};
 use crate::scanner;
-use crate::scanner::{MatchInfo, ScanOptions, SubAndVid};
+use crate::scanner::{MatchInfo, ScanOptions};
 use anyhow::Result as AnyResult;
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
@@ -27,11 +27,12 @@ impl AlassCommand {
             self.conf.sub_area_scan,
             self.conf.video_area.as_ref(),
             self.conf.video_area_scan,
+            self.conf.secondary_ext_policy,
         ))?;
 
         util::validate_sub_and_file_matches(&self.global_conf, &matches)?;
 
-        if self.global_conf.no_confirm {
+        if !self.global_conf.confirm {
             self.align_all(&matches)?;
             return Ok(());
         }
@@ -40,7 +41,7 @@ impl AlassCommand {
             &matches,
             self.conf.sub_area.as_ref(),
             self.conf.video_area.as_ref(),
-            true,
+            self.global_conf.color,
         )? {
             AskMatchAnswer::Yes => self.align_all(&matches)?,
             AskMatchAnswer::EditSubtitleRegex => loop {
@@ -71,22 +72,20 @@ impl AlassCommand {
 
         if self.conf.no_parallel {
             for m in aligns {
-                self.align(&alass_binary, &m.matched)?;
+                self.align(&alass_binary, &m.sub_path, &m.video_path)?;
             }
         } else {
             aligns
                 .par_iter()
-                .try_for_each(|m| self.align(&alass_binary, &m.matched))?;
+                .try_for_each(|m| self.align(&alass_binary, &m.sub_path, &m.video_path))?;
         }
         Ok(())
     }
 
-    fn align(&self, alass_binary: &Path, target: &SubAndVid) -> AnyResult<()> {
+    fn align(&self, alass_binary: &Path, sub_path: &Path, video_path: &Path) -> AnyResult<()> {
         let mut cmd = Command::new(alass_binary);
 
-        cmd.arg(&target.vid_path)
-            .arg(&target.sub_path)
-            .arg(&target.sub_path);
+        cmd.arg(video_path).arg(sub_path).arg(sub_path);
 
         if !self.conf.flags.is_empty() {
             cmd.args(&self.conf.flags);

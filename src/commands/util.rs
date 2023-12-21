@@ -1,11 +1,12 @@
 use crate::config::GlobalConfig;
-use crate::scanner::MatchInfo;
+use crate::scanner::{MatchInfo, MatchInfoType};
 use anyhow::Result as AnyResult;
 use core::result::Result::Ok;
 use crossterm::style::Stylize;
-use regex::{Match, Regex};
+use regex::{Regex};
 use std::ffi::OsStr;
 use std::io::{self, Write};
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 // these are the formats that subparse currently supports
@@ -21,72 +22,76 @@ pub enum AskMatchAnswer {
 
 pub fn ask_match_is_ok(
     renames: &[MatchInfo],
-    sub_area: Option<&Regex>,
-    vid_area: Option<&Regex>,
-    highlight: bool,
+    sub_area_regex: Option<&Regex>,
+    video_area_regex: Option<&Regex>,
+    color: bool,
 ) -> AnyResult<AskMatchAnswer> {
-    fn print_highlights(
-        matcher: Option<Match>,
-        before: &str,
-        target: &str,
-        after: &str,
-        highlight: bool,
+    fn print_file_parts(
+        file_name: &str,
+        area_range: &Option<Range<usize>>,
+        number_range: &Range<usize>,
+        color: bool,
     ) {
-        let (before_no_hl, before_hl, after_hl, after_no_hl) = if let Some(matcher) = matcher {
-            let start = matcher.range().start;
-            let end = matcher.range().end - (before.len() + target.len());
-            (
-                &before[0..start],
-                &before[start..],
-                &after[..end],
-                &after[end..],
-            )
+        let (before, area_left, num, area_right, after) = if let Some(area) = area_range {
+            let before = &file_name[0..area.start];
+            let area_left = &file_name[area.start..number_range.start];
+            let num = &file_name[number_range.start..number_range.end];
+            let area_right = &file_name[number_range.end..area.end];
+            let after = &file_name[area.end..];
+            (before, area_left, num, area_right, after)
         } else {
-            // No area regex match means no extra highlights are needed
-            (before, "", "", after)
+            let before = &file_name[0..number_range.start];
+            let num = &file_name[number_range.start..number_range.end];
+            let after = &file_name[number_range.end..];
+            (before, "", num, "", after)
         };
 
-        print!("{before_no_hl}");
-        if highlight {
-            print!("{}", before_hl.black().bold().on_grey());
-            print!("{}", target.black().bold().on_yellow());
-            print!("{}", after_hl.black().bold().on_grey());
+        print!("{before}");
+        if color {
+            print!("{}", area_left.black().bold().on_grey());
+            print!("{}", num.black().bold().on_yellow());
+            print!("{}", area_right.black().bold().on_grey());
         } else {
-            print!("{}", before_hl);
-            print!("{}", target);
-            print!("{}", after_hl);
+            print!("{}", area_left);
+            print!("{}", num);
+            print!("{}", area_right);
         }
-        print!("{after_no_hl}");
+        print!("{after}");
     }
 
     for rename in renames.iter() {
-        let (sub_before, sub_match, sub_after) = rename.sub_match_parts();
-        let sub_ext = &rename.matched.sub_ext_part.to_string_lossy();
-        let (vid_before, vid_match, vid_after) = rename.vid_match_parts();
-        let vid_ext = rename
-            .matched
-            .vid_ext_part
-            .as_ref()
-            .map(|e| e.to_string_lossy());
+        let MatchInfoType::NumberMatch {
+            sub_number_range,
+            video_number_range,
+            sub_match_area,
+            video_match_area,
+        } = &rename.match_type
+        else {
+            continue;
+        };
 
-        let sub_area_match = sub_area.and_then(|r| r.find(&rename.matched.sub_file_part));
-        let vid_area_match = vid_area.and_then(|r| r.find(&rename.matched.vid_file_part));
-
-        print_highlights(sub_area_match, sub_before, sub_match, sub_after, highlight);
-        print!(".{sub_ext} -> ");
-        print_highlights(vid_area_match, vid_before, vid_match, vid_after, highlight);
-        if let Some(vid_ext) = vid_ext {
-            print!(".{vid_ext}");
-        }
+        print_file_parts(
+            &rename.sub_file_name,
+            sub_match_area,
+            sub_number_range,
+            color,
+        );
+        print!(" -> ");
+        print_file_parts(
+            &rename.video_file_name,
+            video_match_area,
+            video_number_range,
+            color,
+        );
         println!();
     }
 
     println!(
         "\n[s = edit subtitle regex (current: {}), v = edit video regex (current: {})]",
-        sub_area
+        sub_area_regex
             .map(|r| r.to_string())
             .unwrap_or("None".to_string()),
-        vid_area
+        video_area_regex
             .map(|r| r.to_string())
             .unwrap_or("None".to_string()),
     );
@@ -123,7 +128,7 @@ pub fn validate_sub_and_file_matches(
     matches: &[MatchInfo],
 ) -> AnyResult<()> {
     validate_sub_and_file_matches_ignore_extensions(global_conf, matches)?;
-    let sub_files: Vec<&PathBuf> = matches.iter().map(|m| &m.matched.sub_path).collect();
+    let sub_files: Vec<&PathBuf> = matches.iter().map(|m| &m.sub_path).collect();
     validate_sub_extensions(&sub_files)?;
     Ok(())
 }

@@ -1,4 +1,4 @@
-use crate::scanner::AreaScan;
+use crate::scanner::{AreaScan, SecondaryExtensionPolicy};
 use anyhow::Result as AnyResult;
 use clap::ArgMatches;
 use clap::{App, SubCommand};
@@ -14,7 +14,8 @@ use std::str::FromStr;
 #[derive(Debug, Clone)]
 pub struct GlobalConfig {
     pub path: PathBuf,
-    pub no_confirm: bool,
+    pub confirm: bool,
+    pub color: bool,
     pub sub_filter: Option<Regex>,
     pub video_filter: Option<Regex>,
 }
@@ -33,6 +34,7 @@ pub struct RenameConfig {
     pub sub_area_scan: AreaScan,
     pub video_area: Option<Regex>,
     pub video_area_scan: AreaScan,
+    pub secondary_ext_policy: SecondaryExtensionPolicy,
 }
 
 #[derive(Debug)]
@@ -50,6 +52,7 @@ pub struct AlassConfig {
     pub video_area: Option<Regex>,
     pub video_area_scan: AreaScan,
     pub no_parallel: bool,
+    pub secondary_ext_policy: SecondaryExtensionPolicy,
 }
 
 impl TimeConfig {
@@ -81,11 +84,17 @@ impl GlobalConfig {
                     .short("y")
                     .takes_value(false)
                     .help(
-                        "Only videos with file names that match this regex will be targeted by \
-                        any of the SUBCOMMANDS.",
+                        "If set no confirmation prompt is shown before applying file operations.",
                     ),
             )
-            .arg(Arg::with_name("filter_sub")
+            .arg(
+                Arg::with_name("no_color")
+                    .long("no-color")
+                    .takes_value(false)
+                    .help("If set text colors are not used for highlights."),
+            )
+            .arg(
+                Arg::with_name("filter_sub")
                     .long("filter-sub")
                     .short("s")
                     .takes_value(true)
@@ -94,19 +103,20 @@ impl GlobalConfig {
                         any of the SUBCOMMANDS.",
                     ),
             )
-            .arg(Arg::with_name("filter_video")
+            .arg(
+                Arg::with_name("filter_video")
                     .long("filter-video")
                     .short("v")
                     .takes_value(true)
                     .help(
-                        "A regular expression which, if given, must match the file name of a video file \
-                        for that video file to be targeted by any of the SUBCOMMANDS.",
+                        "Only videos with file names that match this regex will be targeted by \
+                        any of the SUBCOMMANDS.",
                     ),
             )
             .subcommand(
                 SubCommand::with_name("rename")
                     .about("Renames subtitle files to match the corresponding video file.")
-                    .common_match_args()
+                    .common_match_args(),
             )
             .subcommand(
                 SubCommand::with_name("time")
@@ -117,11 +127,7 @@ impl GlobalConfig {
                         "Adjusts the timing of all subs. The value is specified in milliseconds, \
                          and can be negative.",
                     )
-                    .arg(
-                        Arg::with_name("time")
-                            .required(true)
-                            .takes_value(true)
-                    )
+                    .arg(Arg::with_name("time").required(true).takes_value(true))
                     .arg(
                         Arg::with_name("encoding")
                             .long("encoding")
@@ -131,48 +137,37 @@ impl GlobalConfig {
                                 "Needed to parse text-based subtitle formats. Defaults to UTF-8.",
                             ),
                     )
-                    .arg(
-                        Arg::with_name("fps")
-                            .long("fps")
-                            .takes_value(true)
-                            .help(
-                                "Needed for MicroDVD .sub files. Specifies the FPS that the video \
+                    .arg(Arg::with_name("fps").long("fps").takes_value(true).help(
+                        "Needed for MicroDVD .sub files. Specifies the FPS that the video \
                                 file is encoded in. Defaults to 25.0",
-                            ),
-                    )
+                    )),
             )
-            .subcommand(
-                SubCommand::with_name("time-mpv")
-                    .about("Adjusts the timing of all subs interactively using mpv. \
-                            `mpv` must be installed on the system for this command to work.")
-            )
+            .subcommand(SubCommand::with_name("time-mpv").about(
+                "Adjusts the timing of all subs interactively using mpv. `mpv` must be installed.",
+            ))
             .subcommand(
                 SubCommand::with_name("alass")
                     .settings(&[AppSettings::AllowLeadingHyphen])
                     .about(
                         "Adjusts the timing of all subs that are matched with a video file using \
                         `alass` (https://github.com/kaegi/alass). This can automatically fix \
-                        wrong timings due to commercial breaks for example."
+                        wrong timings.",
                     )
                     .common_match_args()
-                    .arg(
-                        Arg::with_name("flags")
-                            .takes_value(true)
-                            .help(
-                                "A string of flags that is passed directly to alass for each \
+                    .arg(Arg::with_name("flags").takes_value(true).help(
+                        "A string of flags that is passed directly to alass for each \
                                 subtitle/video adjustment. The arguments must be quoted so that \
                                 they are interpreted as a single string, for example: \
                                 \n\n  sub-batch alass \"--split-penalty 10\"",
-                            ),
-                    )
+                    ))
                     .arg(
                         Arg::with_name("no_parallel")
                             .long("nopar")
                             .takes_value(false)
                             .help(
-                                "If this flag is set sub-batch will not execute alass in parallel."
+                                "If this flag is set sub-batch will not execute alass in parallel.",
                             ),
-                    )
+                    ),
             )
             .get_matches();
 
@@ -200,6 +195,7 @@ impl GlobalConfig {
                 sub_area_scan,
                 video_area: regex_arg(subcommand_matches, "video_area")?,
                 video_area_scan,
+                secondary_ext_policy: secondary_ext_policy(subcommand_matches),
             }),
             "time" => {
                 let mut tc = TimeConfig::timing(timing(subcommand_matches)?);
@@ -218,6 +214,7 @@ impl GlobalConfig {
                 video_area: regex_arg(subcommand_matches, "video_area")?,
                 video_area_scan,
                 no_parallel: subcommand_matches.is_present("no_parallel"),
+                secondary_ext_policy: secondary_ext_policy(subcommand_matches),
             }),
             "time-mpv" => CommandConfig::Mpv,
             _ => unreachable!(),
@@ -226,12 +223,23 @@ impl GlobalConfig {
         Ok((
             GlobalConfig {
                 path: matches.value_of("path").unwrap().into(),
-                no_confirm: matches.is_present("no_confirm"),
+                confirm: !matches.is_present("no_confirm"),
+                color: !matches.is_present("no_color"),
                 sub_filter: regex_arg(&matches, "filter_sub")?,
                 video_filter: regex_arg(&matches, "filter_video")?,
             },
             command_config,
         ))
+    }
+}
+
+fn secondary_ext_policy(matches: &ArgMatches) -> SecondaryExtensionPolicy {
+    if matches.is_present("secondary_ext_always") {
+        SecondaryExtensionPolicy::Always
+    } else if matches.is_present("secondary_ext_never") {
+        SecondaryExtensionPolicy::Never
+    } else {
+        SecondaryExtensionPolicy::Maybe
     }
 }
 
@@ -280,6 +288,40 @@ impl<'a, 'b> CommonMatchArgs for App<'a, 'b> {
                 .long("rv")
                 .takes_value(false)
                 .help("Looks for the video numbers starting from the end of the area."),
+        )
+        .arg(
+            Arg::with_name("secondary_ext_always")
+                .long("sec-always")
+                .takes_value(false)
+                .help(
+                    "By default, secondary extensions (i.e. \".jp\" in the file \"sub.jp.srt\" \
+                    are only treated as part of the extension and not part of the file name if \
+                    the following two conditions are true: \
+                    1. The secondary extension is no longer than 3 characters long.
+                    2. The secondary extension does not contain any numbers.
+                    The length restriction exists because it matches the default behavior of 
+                    mpv, and the number restriction because if the secondary extension contains 
+                    a number, that number may be the number that is used to match the video file.
+                    If this flag is set these two restrictions no longer apply and ANY 
+                    secondary extension is treated as part of the file extension.",
+                ),
+        )
+        .arg(
+            Arg::with_name("secondary_ext_never")
+                .long("sec-never")
+                .takes_value(false)
+                .help(
+                    "By default, secondary extensions (i.e. \".jp\" in the file \"sub.jp.srt\" \
+                    are only treated as part of the extension and not part of the file name if \
+                    the following two conditions are true: \
+                    1. The secondary extension is no longer than 3 characters long.
+                    2. The secondary extension does not contain any numbers.
+                    The length restriction exists because it matches the default behavior of 
+                    mpv, and the number restriction because if the secondary extension contains 
+                    a number, that number may be the number that is used to match the video file.
+                    If this flag is set secondary extensions are ignored and always treated as 
+                    part of the file stem.",
+                ),
         )
     }
 }
