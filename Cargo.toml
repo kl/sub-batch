@@ -16,7 +16,6 @@ license = "MIT"
 regex = "1"
 subparse = "0.7"
 clap = "2"
-lazy_static = "1"
 encoding_rs = "0.8"
 anyhow = "1"
 which = "5"
@@ -24,6 +23,8 @@ rayon = "1"
 tempfile = "3"
 interprocess = "1"
 crossterm = "0.27"
+rustyline = "13"
+once_cell = "1.19"
 ctrlc = { version = "3", features = ["termination"] }
 
 [dev-dependencies]

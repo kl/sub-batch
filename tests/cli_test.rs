@@ -21,11 +21,16 @@ fn can_rename_sub_file() {
         .success();
 
     let files = util::files_in(&dir);
-    assert_eq!(files.len(), 4);
+    dbg!(&files);
+    assert_eq!(files.len(), 8);
     assert!(files.contains(&"sample-video-01.mp4".to_string()));
     assert!(files.contains(&"sample-video-01.srt".to_string()));
     assert!(files.contains(&"sample-video-0.mkv".to_string()));
     assert!(files.contains(&"sample-video-0.ass".to_string()));
+    assert!(files.contains(&"00027leadingzeros.ass".to_string()));
+    assert!(files.contains(&"00027leadingzeros.mp4".to_string()));
+    assert!(files.contains(&"double_07".to_string()));
+    assert!(files.contains(&"double_07.srt".to_string()));
 }
 
 #[test]
@@ -44,11 +49,15 @@ fn rename_does_not_happen_when_filter_is_not_matching() {
         .failure();
 
     let files = util::files_in(&dir);
-    assert_eq!(files.len(), 4);
+    assert_eq!(files.len(), 8);
     assert!(files.contains(&"sample-video-01.mp4".to_string()));
     assert!(files.contains(&"sub01.srt".to_string()));
     assert!(files.contains(&"sample-video-0.mkv".to_string()));
     assert!(files.contains(&"0.ass".to_string()));
+    assert!(files.contains(&"sub27.ass".to_string()));
+    assert!(files.contains(&"00027leadingzeros.mp4".to_string()));
+    assert!(files.contains(&"double_07".to_string()));
+    assert!(files.contains(&"07_leading_sub.srt".to_string()));
 }
 
 #[test]

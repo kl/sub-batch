@@ -8,6 +8,8 @@ mod commands {
     mod util;
 }
 use crate::commands::mpv::MpvCommand;
+use crate::commands::rename::RenameCommand;
+use crate::commands::time::TimeCommand;
 use crate::config::{CommandConfig, GlobalConfig};
 use alass::AlassCommand;
 use anyhow::Result as AnyResult;
@@ -15,9 +17,6 @@ use commands::*;
 use crossterm::{cursor, terminal, ExecutableCommand};
 use std::process;
 use CommandConfig::*;
-
-#[macro_use]
-extern crate lazy_static;
 
 #[macro_use]
 extern crate anyhow;
@@ -55,10 +54,10 @@ fn run() -> AnyResult<()> {
 
     // Delegate to the right command.
     match cmd_config {
-        Rename(c) => rename::run(&global_config, c),
-        Time(c) => time::run(&global_config, c),
-        Alass(c) => AlassCommand::new(global_config, c).run(),
-        Mpv => MpvCommand::new(global_config).run(),
+        Rename(c) => RenameCommand::new(&global_config, c).run(),
+        Time(c) => TimeCommand::new(&global_config, c).run(),
+        Alass(c) => AlassCommand::new(&global_config, c).run(),
+        Mpv => MpvCommand::new(&global_config).run(),
     }?;
 
     Ok(())

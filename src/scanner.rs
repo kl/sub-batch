@@ -1,6 +1,7 @@
-use crate::config::GlobalConfig;
+use crate::config::{GlobalConfig, MatchFilesConfig};
 use anyhow::Result as AnyResult;
-use regex::{Match, Regex};
+use once_cell::sync::Lazy;
+use regex::Regex;
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::fmt::Debug;
@@ -9,9 +10,7 @@ use std::io;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 
-lazy_static! {
-    static ref NUMBER: Regex = Regex::new(r"\d+").unwrap();
-}
+static NUMBER: Lazy<Regex> = Lazy::new(|| Regex::new(r"\d+").unwrap());
 
 static EXTENSIONS: &[&str] = &[
     "cdg", "idx", "srt", "sub", "utf", "ass", "ssa", "aqt", "jss", "psb", "rt", "sami", "smi",
@@ -109,7 +108,7 @@ pub enum SecondaryExtensionPolicy {
 
 impl<'a> ScanOptions<'a> {
     pub fn from_global_conf(
-        conf: &'a GlobalConfig,
+        global: &'a GlobalConfig,
         sub_area: Option<&'a Regex>,
         sub_area_scan: AreaScan,
         video_area: Option<&'a Regex>,
@@ -117,15 +116,29 @@ impl<'a> ScanOptions<'a> {
         secondary_ext_policy: SecondaryExtensionPolicy,
     ) -> Self {
         ScanOptions {
-            path: &conf.path,
+            path: &global.path,
             sub_area,
             video_area,
-            sub_filter: conf.sub_filter.as_ref(),
+            sub_filter: global.sub_filter.as_ref(),
             sub_area_scan,
-            video_filter: conf.video_filter.as_ref(),
+            video_filter: global.video_filter.as_ref(),
             video_area_scan,
             secondary_ext_policy,
         }
+    }
+
+    pub fn from_global_and_match_conf(
+        global: &'a GlobalConfig,
+        match_conf: &'a MatchFilesConfig,
+    ) -> Self {
+        ScanOptions::from_global_conf(
+            global,
+            match_conf.sub_area.as_ref(),
+            match_conf.sub_area_scan,
+            match_conf.video_area.as_ref(),
+            match_conf.video_area_scan,
+            match_conf.secondary_ext_policy,
+        )
     }
 }
 
@@ -309,7 +322,7 @@ struct FileInfo<'a> {
 
 impl FileInfo<'_> {
     fn find_number_in_area(&self, area_scan: AreaScan) -> Option<(&str, Range<usize>)> {
-        self.find_in_area(&NUMBER, area_scan)
+        self.find_numbers_in_area(area_scan).next()
     }
 
     fn find_specific_number_in_area(
@@ -317,25 +330,30 @@ impl FileInfo<'_> {
         number: &str,
         area_scan: AreaScan,
     ) -> Option<Range<usize>> {
-        let regex = Regex::new(number).expect("invalid number");
-        self.find_in_area(&regex, area_scan).map(|(_, range)| range)
+        self.find_numbers_in_area(area_scan)
+            .find(|(num, _)| remove_leading_zeros(number) == *num)
+            .map(|(_, range)| range)
     }
 
-    fn find_in_area(&self, regex: &Regex, area_scan: AreaScan) -> Option<(&str, Range<usize>)> {
+    fn find_numbers_in_area(
+        &self,
+        area_scan: AreaScan,
+    ) -> impl Iterator<Item = (&str, Range<usize>)> {
         let (area, area_start) = self.area_and_start();
 
-        let mut matches = regex.find_iter(area).collect::<Vec<Match>>();
+        let mut matches = NUMBER.find_iter(area).collect::<Vec<_>>();
         if area_scan == AreaScan::Reverse {
             matches.reverse();
         }
 
-        for num_match in matches {
-            let num = remove_leading_zeroes(num_match.as_str());
-            let removed_zeroes = num_match.as_str().len() - num.len();
+        matches.into_iter().filter_map(move |num_match| {
+            let num_raw = num_match.as_str();
+            let num = remove_leading_zeros(num_raw);
+            let removed_zeroes = num_raw.len() - num.len();
             let range =
                 (area_start + num_match.start() + removed_zeroes)..(area_start + num_match.end());
 
-            let result = (num_match.as_str(), range);
+            let result = (num, range);
 
             // We must check and make sure that the matched number isn't part of the file extension. If it is we
             // try the next matching number or return None when there are no more matching numbers.
@@ -344,8 +362,8 @@ impl FileInfo<'_> {
                 None => return Some(result),
                 _ => {}
             }
-        }
-        None
+            None
+        })
     }
 
     fn area_and_start(&self) -> (&str, usize) {
@@ -360,7 +378,7 @@ impl FileInfo<'_> {
     }
 }
 
-fn remove_leading_zeroes(num: &str) -> &str {
+fn remove_leading_zeros(num: &str) -> &str {
     if let Some(non_zero) = num.chars().position(|n| n != '0') {
         &num[non_zero..]
     } else {

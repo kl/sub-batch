@@ -5,66 +5,108 @@ use crate::scanner;
 use crate::scanner::{MatchInfo, ScanOptions};
 use anyhow::Result as AnyResult;
 use rayon::prelude::*;
+use rustyline::DefaultEditor;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 static ALASS_BINARY_NAMES: &[&str] = &["alass-cli", "alass"];
 
-pub struct AlassCommand {
-    global_conf: GlobalConfig,
+pub struct AlassCommand<'a> {
+    global_conf: &'a GlobalConfig,
     conf: AlassConfig,
+    line_editor: Option<DefaultEditor>,
 }
 
-impl AlassCommand {
-    pub fn new(global_conf: GlobalConfig, conf: AlassConfig) -> Self {
-        Self { global_conf, conf }
+impl<'a> AlassCommand<'a> {
+    pub fn new(global_conf: &'a GlobalConfig, conf: AlassConfig) -> Self {
+        Self {
+            global_conf,
+            conf,
+            line_editor: DefaultEditor::new().ok(),
+        }
     }
 
-    pub fn run(&self) -> AnyResult<()> {
-        let matches = scanner::scan(ScanOptions::from_global_conf(
-            &self.global_conf,
-            self.conf.sub_area.as_ref(),
-            self.conf.sub_area_scan,
-            self.conf.video_area.as_ref(),
-            self.conf.video_area_scan,
-            self.conf.secondary_ext_policy,
+    pub fn new_with_editor(
+        global_conf: &'a GlobalConfig,
+        conf: AlassConfig,
+        editor: Option<DefaultEditor>,
+    ) -> Self {
+        AlassCommand {
+            global_conf,
+            conf,
+            line_editor: editor,
+        }
+    }
+
+    pub fn run(&mut self) -> AnyResult<()> {
+        let matches = scanner::scan(ScanOptions::from_global_and_match_conf(
+            self.global_conf,
+            &self.conf.match_config,
         ))?;
 
-        util::validate_sub_and_file_matches(&self.global_conf, &matches)?;
+        util::validate_sub_and_file_matches(self.global_conf, &matches)?;
 
         if !self.global_conf.confirm {
             self.align_all(&matches)?;
             return Ok(());
         }
 
-        match util::ask_match_is_ok(
+        let match_ok_answer = util::ask_match_is_ok(
             &matches,
-            self.conf.sub_area.as_ref(),
-            self.conf.video_area.as_ref(),
+            self.conf.match_config.sub_area.as_ref(),
+            self.conf.match_config.video_area.as_ref(),
             self.global_conf.color,
-        )? {
+            self.line_editor.as_mut(),
+        )?;
+
+        match match_ok_answer {
             AskMatchAnswer::Yes => self.align_all(&matches)?,
             AskMatchAnswer::EditSubtitleRegex => loop {
-                let mut new_conf = self.conf.clone();
-                new_conf.sub_area = Some(util::get_user_regex("input new subtitle area regex: ")?);
-                if let Err(e) = AlassCommand::new(self.global_conf.clone(), new_conf).run() {
-                    println!("error: {}", e);
-                } else {
-                    break;
+                match util::get_user_regex(
+                    "enter new subtitle area regex: ",
+                    self.line_editor.as_mut(),
+                ) {
+                    Ok(Some(regex)) => {
+                        let mut new_conf = self.conf.clone();
+                        new_conf.match_config.sub_area = Some(regex);
+                        if self.run_again(new_conf) {
+                            break;
+                        }
+                    }
+                    Ok(None) => break,
+                    Err(e) => return Err(e),
                 }
             },
             AskMatchAnswer::EditVideoRegex => loop {
-                let mut new_conf = self.conf.clone();
-                new_conf.video_area = Some(util::get_user_regex("input new video area regex: ")?);
-                if let Err(e) = AlassCommand::new(self.global_conf.clone(), new_conf).run() {
-                    println!("error: {}", e);
-                } else {
-                    break;
+                match util::get_user_regex(
+                    "enter new video area regex: ",
+                    self.line_editor.as_mut(),
+                ) {
+                    Ok(Some(regex)) => {
+                        let mut new_conf = self.conf.clone();
+                        new_conf.match_config.video_area = Some(regex);
+                        if self.run_again(new_conf) {
+                            break;
+                        }
+                    }
+                    Ok(None) => break,
+                    Err(e) => return Err(e),
                 }
             },
             AskMatchAnswer::No => {}
         }
         Ok(())
+    }
+
+    fn run_again(&mut self, new_conf: AlassConfig) -> bool {
+        if let Err(e) =
+            AlassCommand::new_with_editor(self.global_conf, new_conf, self.line_editor.take()).run()
+        {
+            println!("error: {}", e);
+            false
+        } else {
+            true
+        }
     }
 
     fn align_all(&self, aligns: &[MatchInfo]) -> AnyResult<()> {

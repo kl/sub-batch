@@ -1,8 +1,9 @@
+use crate::commands::time::TimeCommand;
 use crate::commands::util;
 use crate::config::{GlobalConfig, TimeConfig};
 use crate::scanner;
 use crate::scanner::{AreaScan, MatchInfo, ScanOptions, SecondaryExtensionPolicy};
-use crate::time;
+
 use anyhow::Context;
 use anyhow::Result as AnyResult;
 use crossterm::cursor::MoveToColumn;
@@ -19,16 +20,16 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
 
-pub struct MpvCommand {
-    global_conf: GlobalConfig,
+pub struct MpvCommand<'a> {
+    global_conf: &'a GlobalConfig,
 }
 
-impl MpvCommand {
+impl<'a> MpvCommand<'a> {
     const SHIFT_LARGE: i64 = 500;
     const SHIFT_MEDIUM: i64 = 250;
     const SHIFT_SMALL: i64 = 50;
 
-    pub fn new(global_conf: GlobalConfig) -> Self {
+    pub fn new(global_conf: &'a GlobalConfig) -> Self {
         Self { global_conf }
     }
 
@@ -57,14 +58,14 @@ impl MpvCommand {
 
     fn first_sub_video_match(&self) -> AnyResult<MatchInfo> {
         let mut matches = scanner::scan(ScanOptions::from_global_conf(
-            &self.global_conf,
+            self.global_conf,
             None,
             AreaScan::Normal,
             None,
             AreaScan::Normal,
             SecondaryExtensionPolicy::Never,
         ))?;
-        util::validate_sub_and_file_matches(&self.global_conf, &matches)?;
+        util::validate_sub_and_file_matches(self.global_conf, &matches)?;
         Ok(matches.swap_remove(0))
     }
 
@@ -132,7 +133,7 @@ impl MpvCommand {
     }
 
     fn shift_subs(&self, conn: &mut MpvConnection, timing: i64) -> AnyResult<i64> {
-        time::run(&self.global_conf, TimeConfig::timing(timing))?;
+        TimeCommand::new(self.global_conf, TimeConfig::timing(timing)).run()?;
         let resp = conn.send_wait(r#"{ "command": ["sub_reload"] }"#)?;
         if !resp.contains("success") {
             bail!(resp);

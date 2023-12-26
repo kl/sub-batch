@@ -22,14 +22,14 @@ pub struct GlobalConfig {
 
 #[derive(Debug)]
 pub enum CommandConfig {
-    Rename(RenameConfig),
+    Rename(MatchFilesConfig),
     Time(TimeConfig),
     Alass(AlassConfig),
     Mpv,
 }
 
 #[derive(Debug, Clone)]
-pub struct RenameConfig {
+pub struct MatchFilesConfig {
     pub sub_area: Option<Regex>,
     pub sub_area_scan: AreaScan,
     pub video_area: Option<Regex>,
@@ -47,12 +47,8 @@ pub struct TimeConfig {
 #[derive(Debug, Clone)]
 pub struct AlassConfig {
     pub flags: Vec<String>,
-    pub sub_area: Option<Regex>,
-    pub sub_area_scan: AreaScan,
-    pub video_area: Option<Regex>,
-    pub video_area_scan: AreaScan,
     pub no_parallel: bool,
-    pub secondary_ext_policy: SecondaryExtensionPolicy,
+    pub match_config: MatchFilesConfig,
 }
 
 impl TimeConfig {
@@ -190,7 +186,7 @@ impl GlobalConfig {
         };
 
         let command_config = match subcommand_name {
-            "rename" => CommandConfig::Rename(RenameConfig {
+            "rename" => CommandConfig::Rename(MatchFilesConfig {
                 sub_area: regex_arg(subcommand_matches, "sub_area")?,
                 sub_area_scan,
                 video_area: regex_arg(subcommand_matches, "video_area")?,
@@ -209,12 +205,14 @@ impl GlobalConfig {
             }
             "alass" => CommandConfig::Alass(AlassConfig {
                 flags: alass_flags(subcommand_matches),
-                sub_area: regex_arg(subcommand_matches, "sub_area")?,
-                sub_area_scan,
-                video_area: regex_arg(subcommand_matches, "video_area")?,
-                video_area_scan,
                 no_parallel: subcommand_matches.is_present("no_parallel"),
-                secondary_ext_policy: secondary_ext_policy(subcommand_matches),
+                match_config: MatchFilesConfig {
+                    sub_area: regex_arg(subcommand_matches, "sub_area")?,
+                    sub_area_scan,
+                    video_area: regex_arg(subcommand_matches, "video_area")?,
+                    video_area_scan,
+                    secondary_ext_policy: secondary_ext_policy(subcommand_matches),
+                },
             }),
             "time-mpv" => CommandConfig::Mpv,
             _ => unreachable!(),

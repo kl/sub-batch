@@ -2,8 +2,10 @@ use crate::config::GlobalConfig;
 use crate::scanner::{MatchInfo, MatchInfoType};
 use anyhow::Result as AnyResult;
 use core::result::Result::Ok;
-use crossterm::style::Stylize;
-use regex::{Regex};
+use crossterm::style::{Stylize};
+use regex::Regex;
+use rustyline::error::ReadlineError;
+use rustyline::DefaultEditor;
 use std::ffi::OsStr;
 use std::io::{self, Write};
 use std::ops::Range;
@@ -25,6 +27,7 @@ pub fn ask_match_is_ok(
     sub_area_regex: Option<&Regex>,
     video_area_regex: Option<&Regex>,
     color: bool,
+    mut line_editor: Option<&mut DefaultEditor>,
 ) -> AnyResult<AskMatchAnswer> {
     fn print_file_parts(
         file_name: &str,
@@ -48,9 +51,9 @@ pub fn ask_match_is_ok(
 
         print!("{before}");
         if color {
-            print!("{}", area_left.black().bold().on_grey());
+            print!("{}", area_left.black().bold().on_magenta());
             print!("{}", num.black().bold().on_yellow());
-            print!("{}", area_right.black().bold().on_grey());
+            print!("{}", area_right.black().bold().on_magenta());
         } else {
             print!("{}", area_left);
             print!("{}", num);
@@ -58,6 +61,16 @@ pub fn ask_match_is_ok(
         }
         print!("{after}");
     }
+
+    if renames.is_empty() {
+        return Ok(AskMatchAnswer::No);
+    }
+
+    let longest_sub_length = renames
+        .iter()
+        .map(|sub| sub.sub_file_name.len())
+        .max_by(|a, b| a.cmp(b))
+        .unwrap();
 
     for rename in renames.iter() {
         let MatchInfoType::NumberMatch {
@@ -76,7 +89,11 @@ pub fn ask_match_is_ok(
             sub_number_range,
             color,
         );
+
+        let padding = longest_sub_length - rename.sub_file_name.len();
+        print!("{}", str::repeat(" ", padding));
         print!(" -> ");
+
         print_file_parts(
             &rename.video_file_name,
             video_match_area,
@@ -90,17 +107,28 @@ pub fn ask_match_is_ok(
         "\n[s = edit subtitle regex (current: {}), v = edit video regex (current: {})]",
         sub_area_regex
             .map(|r| r.to_string())
-            .unwrap_or("None".to_string()),
+            .unwrap_or("none".to_string()),
         video_area_regex
             .map(|r| r.to_string())
-            .unwrap_or("None".to_string()),
+            .unwrap_or("none".to_string()),
     );
-    print!("Ok? (Y/n): ");
-    io::stdout().flush()?;
 
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
-    input = input.to_lowercase();
+    let prompt = "Ok? (Y/n): ";
+    let input = if let Some(ref mut editor) = line_editor {
+        let readline = editor.readline(prompt);
+        match readline {
+            Ok(line) => line,
+            Err(ReadlineError::Interrupted | ReadlineError::Eof) => return Ok(AskMatchAnswer::No),
+            Err(err) => bail!(err),
+        }
+    } else {
+        print!("{prompt}");
+        io::stdout().flush()?;
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        input.to_lowercase()
+    };
 
     Ok(
         if input.split_whitespace().next().is_none() || input.starts_with('y') {
@@ -166,15 +194,35 @@ fn has_subparse_supported_subtitle_formats(matches: &[impl AsRef<Path>]) -> bool
     })
 }
 
-pub fn get_user_regex(prompt: &str) -> AnyResult<Regex> {
-    print!("{prompt}");
-    std::io::stdout().flush()?;
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input)?;
-    input.pop();
-    if let Ok(regex) = Regex::new(&input) {
-        Ok(regex)
+pub fn get_user_regex(
+    prompt: &str,
+    mut line_editor: Option<&mut DefaultEditor>,
+) -> AnyResult<Option<Regex>> {
+    if let Some(ref mut editor) = line_editor {
+        let readline = editor.readline(prompt);
+        match readline {
+            Ok(line) => {
+                editor.add_history_entry(line.as_str())?;
+                if let Ok(regex) = Regex::new(line.as_str()) {
+                    Ok(Some(regex))
+                } else {
+                    get_user_regex("invalid regex, try again: ", line_editor)
+                }
+            }
+            Err(ReadlineError::Interrupted | ReadlineError::Eof) => Ok(None),
+            Err(err) => bail!(err),
+        }
     } else {
-        get_user_regex("invalid regex, try again: ")
+        print!("{prompt}");
+        io::stdout().flush()?;
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        input.pop();
+        if let Ok(regex) = Regex::new(&input) {
+            Ok(Some(regex))
+        } else {
+            get_user_regex("invalid regex, try again: ", line_editor)
+        }
     }
 }
