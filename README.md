@@ -171,7 +171,7 @@ following __two conditions are true__:
 2. The secondary extension doesn't contain a number.
 
 The length check exists because mpv (by default) doesn't recognize secondary extensions longer than 3 characters,
-and the number check exists because a number in the secondary extension may be used as the match number.
+and the number check exists because a number in the secondary extension could be used as the match number.
 
 If any of the above conditions are false, the secondary extension is treated as part of the file stem
 which means that the subtitle can only be uniquely matched to a single video.
