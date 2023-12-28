@@ -1,3 +1,12 @@
+Thu Dec 28 2023
+
+    Version 2.0
+
+    * Secondary extension support in subtitles (e.g. subtitle.en.srt).
+    * New interactive option for changing sub and video area regexes.
+    * New option to scan for numbers from right-to-left instead of left-to-right.
+    * Number matching bug fixes.
+
 Sun Oct 10 2023
 
     Version 1.1.1
