@@ -2,7 +2,7 @@ use crate::config::GlobalConfig;
 use crate::scanner::{MatchInfo, MatchInfoType};
 use anyhow::Result as AnyResult;
 use core::result::Result::Ok;
-use crossterm::style::{Stylize};
+use crossterm::style::Stylize;
 use regex::Regex;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
@@ -117,7 +117,7 @@ pub fn ask_match_is_ok(
     let input = if let Some(ref mut editor) = line_editor {
         let readline = editor.readline(prompt);
         match readline {
-            Ok(line) => line,
+            Ok(line) => line.to_lowercase(),
             Err(ReadlineError::Interrupted | ReadlineError::Eof) => return Ok(AskMatchAnswer::No),
             Err(err) => bail!(err),
         }
