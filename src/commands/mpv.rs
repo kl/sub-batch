@@ -11,7 +11,7 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::style::Print;
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{cursor, event, terminal, ExecutableCommand};
-use interprocess::local_socket::LocalSocketStream;
+use interprocess::local_socket::{prelude::*, GenericFilePath, Stream};
 use std::io;
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -49,7 +49,6 @@ impl<'a> MpvCommand<'a> {
         let mut conn = MpvConnection::connect(&socket_file)?;
 
         self.start_shift_loop(&mut conn)?;
-        println!();
 
         let _ = child.kill();
         let _ = child.wait();
@@ -77,8 +76,17 @@ impl<'a> MpvCommand<'a> {
         let mut time_shift: i64 = 0;
 
         loop {
+            let event_available = event::poll(Duration::from_millis(100))?;
+            if !event_available {
+                if conn.connection_alive() {
+                    continue;
+                } else {
+                    break;
+                }
+            }
+
             let event = event::read()?;
-            if event == Event::Key(KeyCode::Esc.into()) {
+            if event == Event::Key(KeyCode::Esc.into()) || !conn.connection_alive() {
                 break;
             }
 
@@ -107,13 +115,18 @@ impl<'a> MpvCommand<'a> {
             }
         }
 
+        io::stdout().execute(Print("\n"))?;
         io::stdout().execute(cursor::Show)?;
         terminal::disable_raw_mode()?;
         Ok(())
     }
 
-    fn print_banner(&self) -> AnyResult<()> {
+    fn print_banner(&self) -> io::Result<()> {
         io::stdout()
+            .execute(Print("COMMAND\t\tKEY\n"))?
+            .execute(MoveToColumn(0))?
+            .execute(Print("-------\t\t---\n"))?
+            .execute(MoveToColumn(0))?
             .execute(Print(format!("LEFT  {}ms\t1\n", Self::SHIFT_LARGE)))?
             .execute(MoveToColumn(0))?
             .execute(Print(format!("LEFT  {}ms\t2\n", Self::SHIFT_MEDIUM)))?
@@ -147,7 +160,7 @@ fn mpv_socket_file() -> AnyResult<PathBuf> {
 }
 
 struct MpvConnection {
-    stream: BufReader<LocalSocketStream>,
+    stream: BufReader<Stream>,
 }
 
 impl MpvConnection {
@@ -155,9 +168,10 @@ impl MpvConnection {
     const RETRY_ATTEMPTS: i32 = 10;
 
     fn connect(local_socket: &Path) -> io::Result<Self> {
+        let name = local_socket.to_fs_name::<GenericFilePath>()?;
         let mut tries = 0;
         loop {
-            match LocalSocketStream::connect(local_socket) {
+            match Stream::connect(name.clone()) {
                 Ok(stream) => {
                     break Ok(Self {
                         stream: BufReader::new(stream),
@@ -174,9 +188,13 @@ impl MpvConnection {
         }
     }
 
+    fn connection_alive(&mut self) -> bool {
+        self.send(r#"{ "command": ["get_version"] }"#).is_ok()
+    }
+
     /// Send the command (`cmd` should not have a newline in it) and wait for and return
     /// the response from mpv.
-    fn send_wait(&mut self, cmd: &str) -> AnyResult<String> {
+    fn send_wait(&mut self, cmd: &str) -> io::Result<String> {
         let req_id = "45782199";
         let close = cmd.rfind('}').expect("invalid send command");
         let open = &cmd[0..close];
