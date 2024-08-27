@@ -63,6 +63,7 @@ impl<'a> RenameCommand<'a> {
             self.conf.sub_area.as_ref(),
             self.conf.video_area.as_ref(),
             self.global_conf.color,
+            false,
             self.line_editor.as_mut(),
         )?;
 

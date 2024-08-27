@@ -27,6 +27,7 @@ pub fn ask_match_is_ok(
     sub_area_regex: Option<&Regex>,
     video_area_regex: Option<&Regex>,
     color: bool,
+    print_identical: bool,
     mut line_editor: Option<&mut DefaultEditor>,
 ) -> AnyResult<AskMatchAnswer> {
     fn print_file_parts(
@@ -73,6 +74,8 @@ pub fn ask_match_is_ok(
         .unwrap();
 
     for rename in renames.iter() {
+        let padding = str::repeat(" ", longest_sub_length - rename.sub_file_name.len());
+
         let MatchInfoType::NumberMatch {
             sub_number_range,
             video_number_range,
@@ -80,6 +83,12 @@ pub fn ask_match_is_ok(
             video_match_area,
         } = &rename.match_type
         else {
+            if print_identical {
+                println!(
+                    "{}{} -> {}",
+                    rename.sub_file_name, padding, rename.video_file_name
+                );
+            }
             continue;
         };
 
@@ -90,8 +99,7 @@ pub fn ask_match_is_ok(
             color,
         );
 
-        let padding = longest_sub_length - rename.sub_file_name.len();
-        print!("{}", str::repeat(" ", padding));
+        print!("{}", padding);
         print!(" -> ");
 
         print_file_parts(

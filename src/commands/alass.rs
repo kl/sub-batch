@@ -56,6 +56,7 @@ impl<'a> AlassCommand<'a> {
             self.conf.match_config.sub_area.as_ref(),
             self.conf.match_config.video_area.as_ref(),
             self.global_conf.color,
+            true,
             self.line_editor.as_mut(),
         )?;
 
