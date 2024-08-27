@@ -1,3 +1,11 @@
+Tue Aug 27 2024
+
+    Version 2.0.1
+
+    * Fix a bug where entering a uppercase Y was not recognized as a confirmation.
+    * Fix a bug where the alass command didn't always show the video/sub pairs names.
+    * Terminate time-mpv command when the mpv socket is closed.
+
 Thu Dec 28 2023
 
     Version 2.0
