@@ -139,7 +139,7 @@ pub fn ask_match_is_ok(
     };
 
     Ok(
-        if input.split_whitespace().next().is_none() || input.starts_with('y') {
+        if input.split_whitespace().next().is_none() || input.starts_with('Y') {
             AskMatchAnswer::Yes
         } else if input.starts_with('s') {
             AskMatchAnswer::EditSubtitleRegex
