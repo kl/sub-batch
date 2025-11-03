@@ -280,7 +280,7 @@ fn match_areas(
 
 // Partition the files so that files with the same file stem (but different extensions)
 // are in the same vec, e.g. sub1.srt, sub1.en.srt, sub1.jp.srt are put in the same vec.
-fn sub_stem_map(files: Vec<FileInfo>) -> HashMap<&OsStr, Vec<FileInfo>> {
+fn sub_stem_map(files: Vec<FileInfo<'_>>) -> HashMap<&OsStr, Vec<FileInfo<'_>>> {
     files.into_iter().fold(HashMap::new(), |mut map, file| {
         map.entry(file.stem).or_default().push(file);
         map
@@ -289,7 +289,7 @@ fn sub_stem_map(files: Vec<FileInfo>) -> HashMap<&OsStr, Vec<FileInfo>> {
 
 // Video files do not include secondary extensions (so e.g. vid.en.mp4 and vid.jp.mp4 are
 // always treated as two distinct files).
-fn other_stem_map(files: Vec<FileInfo>) -> HashMap<&OsStr, FileInfo> {
+fn other_stem_map(files: Vec<FileInfo<'_>>) -> HashMap<&OsStr, FileInfo<'_>> {
     files.into_iter().fold(HashMap::new(), |mut map, file| {
         map.insert(file.stem, file);
         map

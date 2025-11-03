@@ -10,11 +10,11 @@ use crossterm::cursor::MoveToColumn;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::style::Print;
 use crossterm::terminal::{Clear, ClearType};
-use crossterm::{cursor, event, terminal, ExecutableCommand};
-use interprocess::local_socket::{prelude::*, GenericFilePath, Stream};
+use crossterm::{ExecutableCommand, cursor, event, terminal};
+use interprocess::local_socket::{GenericFilePath, Stream, prelude::*};
 use std::io;
-use std::io::prelude::*;
 use std::io::BufReader;
+use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
@@ -175,7 +175,7 @@ impl MpvConnection {
                 Ok(stream) => {
                     break Ok(Self {
                         stream: BufReader::new(stream),
-                    })
+                    });
                 }
                 Err(err) => {
                     tries += 1;

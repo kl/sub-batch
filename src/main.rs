@@ -11,12 +11,12 @@ use crate::commands::mpv::MpvCommand;
 use crate::commands::rename::RenameCommand;
 use crate::commands::time::TimeCommand;
 use crate::config::{CommandConfig, GlobalConfig};
+use CommandConfig::*;
 use alass::AlassCommand;
 use anyhow::Result as AnyResult;
 use commands::*;
-use crossterm::{cursor, terminal, ExecutableCommand};
+use crossterm::{ExecutableCommand, cursor, terminal};
 use std::process;
-use CommandConfig::*;
 
 #[macro_use]
 extern crate anyhow;

@@ -1,3 +1,4 @@
+use assert_cmd::cargo_bin;
 use assert_cmd::prelude::*;
 use predicates::prelude::*;
 use std::process::Command;
@@ -12,8 +13,7 @@ fn can_rename_sub_file() {
     let dir = tempdir().unwrap();
     util::copy("./tests/rename", &dir).unwrap();
 
-    Command::cargo_bin("sub-batch")
-        .unwrap()
+    Command::new(cargo_bin!())
         .current_dir(&dir)
         .arg("-y")
         .arg("rename")
@@ -38,8 +38,7 @@ fn rename_does_not_happen_when_filter_is_not_matching() {
     let dir = tempdir().unwrap();
     util::copy("./tests/rename", &dir).unwrap();
 
-    Command::cargo_bin("sub-batch")
-        .unwrap()
+    Command::new(cargo_bin!())
         .current_dir(&dir)
         .arg("--filter-video")
         .arg("non-matching-regex")
@@ -65,8 +64,7 @@ fn can_rename_sub_file_that_contains_invalid_utf8() {
     let dir = tempdir().unwrap();
     util::copy("./tests/rename_invalid_utf8", &dir).unwrap();
 
-    Command::cargo_bin("sub-batch")
-        .unwrap()
+    Command::new(cargo_bin!())
         .current_dir(&dir)
         .arg("-y")
         .arg("rename")
@@ -86,8 +84,7 @@ fn preserves_secondary_extension_when_renaming() {
     let dir = tempdir().unwrap();
     util::copy("./tests/rename_2_extensions", &dir).unwrap();
 
-    Command::cargo_bin("sub-batch")
-        .unwrap()
+    Command::new(cargo_bin!())
         .current_dir(&dir)
         .arg("-y")
         .arg("rename")
@@ -109,8 +106,7 @@ fn can_rename_multiple_subs_to_match_a_single_video_file() {
     let dir = tempdir().unwrap();
     util::copy("./tests/rename_multiple", &dir).unwrap();
 
-    Command::cargo_bin("sub-batch")
-        .unwrap()
+    Command::new(cargo_bin!())
         .current_dir(&dir)
         .arg("-y")
         .arg("rename")
@@ -131,16 +127,14 @@ fn can_rename_subs_with_reverse_number_scan() {
     util::copy("./tests/rename_reverse", &dir).unwrap();
 
     // Normal rename should fail to match
-    Command::cargo_bin("sub-batch")
-        .unwrap()
+    Command::new(cargo_bin!())
         .current_dir(&dir)
         .arg("-y")
         .arg("rename")
         .assert()
         .failure();
 
-    Command::cargo_bin("sub-batch")
-        .unwrap()
+    Command::new(cargo_bin!())
         .current_dir(&dir)
         .arg("-y")
         .arg("rename")
@@ -160,8 +154,7 @@ fn can_change_timings_of_sub_files() {
     util::copy("./tests/time_subs_only", &dir).unwrap();
     let files = util::files_in(&dir);
 
-    Command::cargo_bin("sub-batch")
-        .unwrap()
+    Command::new(cargo_bin!())
         .current_dir(&dir)
         .arg("time")
         .arg("100")
@@ -175,8 +168,7 @@ fn can_change_timings_of_sub_files() {
     assert_eq!(first_t[0].0, "00:02:33,100");
     assert_eq!(first_t[2].1, "00:02:44,750");
 
-    Command::cargo_bin("sub-batch")
-        .unwrap()
+    Command::new(cargo_bin!())
         .current_dir(&dir)
         .arg("time")
         .arg("-100")
@@ -197,8 +189,7 @@ fn timings_do_not_change_when_filter_is_not_matching() {
     util::copy("./tests/time_subs_only", &dir).unwrap();
     let files = util::files_in(&dir);
 
-    Command::cargo_bin("sub-batch")
-        .unwrap()
+    Command::new(cargo_bin!())
         .current_dir(&dir)
         .arg("--filter-sub")
         .arg("non-matching-regex")
@@ -220,8 +211,7 @@ fn can_run_alass_on_sub_file() {
     let dir = tempdir().unwrap();
     util::copy("./tests/dummy", &dir).unwrap();
 
-    Command::cargo_bin("sub-batch")
-        .unwrap()
+    Command::new(cargo_bin!())
         .current_dir(&dir)
         .arg("-y")
         .arg("alass")
@@ -239,8 +229,7 @@ fn can_show_confirm_without_panicking() {
     let dir = tempdir().unwrap();
     util::copy("./tests/dummy", &dir).unwrap();
 
-    let mut spawn = Command::cargo_bin("sub-batch")
-        .unwrap()
+    let mut spawn = Command::new(cargo_bin!())
         .current_dir(&dir)
         .arg("alass")
         .spawn()
@@ -256,8 +245,7 @@ fn can_show_confirm_without_panicking() {
     let dir = tempdir().unwrap();
     util::copy("./tests/rename_invalid_utf8", &dir).unwrap();
 
-    let mut spawn = Command::cargo_bin("sub-batch")
-        .unwrap()
+    let mut spawn = Command::new(cargo_bin!())
         .current_dir(&dir)
         .arg("rename")
         .arg("--subarea")

@@ -3,8 +3,8 @@ use crate::config::{GlobalConfig, TimeConfig};
 use crate::scanner::{self, AreaScan, ScanOptions, SecondaryExtensionPolicy};
 use anyhow::Result as AnyResult;
 use std::fs;
-use subparse::timetypes::TimeDelta;
 use subparse::SubtitleFile;
+use subparse::timetypes::TimeDelta;
 
 pub struct TimeCommand<'a> {
     global_conf: &'a GlobalConfig,
