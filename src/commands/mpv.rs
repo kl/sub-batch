@@ -11,11 +11,10 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::style::Print;
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{ExecutableCommand, cursor, event, terminal};
-use interprocess::local_socket::{GenericFilePath, Stream, prelude::*};
+use interprocess::local_socket::{GenericFilePath, Name, Stream, prelude::*};
 use std::io;
 use std::io::BufReader;
 use std::io::prelude::*;
-use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
@@ -36,17 +35,17 @@ impl<'a> MpvCommand<'a> {
     pub fn run(&self) -> AnyResult<()> {
         let mpv = which::which("mpv").context("could not find `mpv` in PATH. Is mpv installed?")?;
         let target = self.first_sub_video_match()?;
-        let socket_file = mpv_socket_file()?;
+        let socket = MpvSocket::create_socket()?;
 
         let mut child = Command::new(mpv)
             .arg(&target.video_path)
-            .arg(format!("--input-ipc-server={}", socket_file.display()))
+            .arg(format!("--input-ipc-server={}", socket.path))
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .stdin(Stdio::null())
             .spawn()?;
 
-        let mut conn = MpvConnection::connect(&socket_file)?;
+        let mut conn = MpvConnection::connect(&socket)?;
 
         self.start_shift_loop(&mut conn)?;
 
@@ -155,8 +154,34 @@ impl<'a> MpvCommand<'a> {
     }
 }
 
-fn mpv_socket_file() -> AnyResult<PathBuf> {
-    Ok(tempfile::NamedTempFile::new()?.path().into())
+#[derive(Debug)]
+struct MpvSocket {
+    path: String,
+}
+
+impl MpvSocket {
+    fn create_socket() -> AnyResult<MpvSocket> {
+        let path = if cfg!(windows) {
+            r"\\.\pipe\sub-batch-mpv-pipe".to_string()
+        } else {
+            tempfile::NamedTempFile::new()?
+                .path()
+                .to_string_lossy()
+                .to_string()
+        };
+        Ok(Self { path })
+    }
+
+    #[cfg(target_os = "windows")]
+    fn name(&self) -> io::Result<Name<'_>> {
+        use interprocess::os::windows::local_socket::NamedPipe;
+        Ok(self.path.clone().to_fs_name::<NamedPipe>()?)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn name(&self) -> io::Result<Name<'_>> {
+        self.path.clone().to_fs_name::<GenericFilePath>()
+    }
 }
 
 struct MpvConnection {
@@ -167,11 +192,10 @@ impl MpvConnection {
     const RETRY_INTERVAL: Duration = Duration::from_millis(200);
     const RETRY_ATTEMPTS: i32 = 10;
 
-    fn connect(local_socket: &Path) -> io::Result<Self> {
-        let name = local_socket.to_fs_name::<GenericFilePath>()?;
+    fn connect(socket: &MpvSocket) -> io::Result<Self> {
         let mut tries = 0;
         loop {
-            match Stream::connect(name.clone()) {
+            match Stream::connect(socket.name()?) {
                 Ok(stream) => {
                     break Ok(Self {
                         stream: BufReader::new(stream),
